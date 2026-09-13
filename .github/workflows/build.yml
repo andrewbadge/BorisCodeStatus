@@ -1,15 +1,14 @@
 name: Build
 
-# Builds and tests on every push and PR, and publishes a GitHub Release when a v* tag is pushed.
+# Continuous integration: builds and tests on every push to main and every PR into main, and
+# uploads the MSI as a build artifact.
 #
-#   git tag v1.2.3 && git push origin v1.2.3
-#
-# The tag drives the MSI's ProductVersion. That version MUST increase between releases or the
-# MSI's MajorUpgrade will refuse to replace an already-installed copy.
+# This workflow never publishes a release. That is the Release workflow, which is run manually.
+# Tags are deliberately NOT a trigger here: the Release workflow creates the tag itself and builds
+# its own MSI, so reacting to tags would just duplicate a two-minute Windows build.
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -22,13 +21,21 @@ on:
 permissions:
   contents: read
 
+# Supersede an in-flight run when a PR is pushed to again: three quick pushes then cost one build
+# rather than three. Runs on main are not cancelled, so every merged commit keeps a green tick.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     # Windows is not a preference here: the tray app targets net10.0-windows and WiX only runs on Windows.
     runs-on: windows-latest
 
+    # Read-only: this workflow only builds and uploads an artifact. Creating tags and releases is
+    # the Release workflow's job, and it asks for contents: write there instead.
     permissions:
-      contents: write # Required only by the release step below; harmless on other triggers.
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -49,10 +56,9 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          # A v* tag is the source of truth for a release build; everything else gets a placeholder.
-          if ($env:GITHUB_REF -like 'refs/tags/v*') {
-            $version = $env:GITHUB_REF -replace '^refs/tags/v', ''
-          } elseif ('${{ github.event.inputs.version }}') {
+          # CI builds are not releases, so the version here is only a placeholder used to stamp the
+          # artifact. The real version is chosen by hand when the Release workflow is run.
+          if ('${{ github.event.inputs.version }}') {
             $version = '${{ github.event.inputs.version }}'
           } else {
             $version = '1.0.0'
@@ -130,36 +136,3 @@ jobs:
           name: ClaudeVitals-${{ steps.version.outputs.version }}-msi
           path: ClaudeVitals.Installer/bin/Release/ClaudeVitals.msi
           if-no-files-found: error
-
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $version = '${{ steps.version.outputs.version }}'
-
-          # Name the asset after the version so downloads are distinguishable once saved.
-          $asset = "ClaudeVitals-$version.msi"
-          Copy-Item "ClaudeVitals.Installer\bin\Release\ClaudeVitals.msi" $asset
-
-          # Built as an array rather than a here-string: PowerShell treats a backtick as an escape
-          # character, so markdown code spans inside a here-string would be silently mangled.
-          # Written to a file and passed with --notes-file to avoid multi-line argument quoting.
-          $notes = @(
-            'Per-user Windows installer for the Claude Code Vitals Relay.',
-            '',
-            "**Install:** run $asset. No administrator rights are required - it installs under",
-            'your local app data, starts at login via an HKCU Run key, and registers its Claude Code',
-            'hooks on first launch.',
-            '',
-            '**After installing,** Windows will ask whether to allow the relay through the firewall.',
-            'Choose **Allow access**. Without it your ESP32 display can never reach the endpoint, even',
-            'though everything looks fine on the PC itself. If you are not an administrator, use',
-            '**Fix firewall access** in the tray menu to get the exact command to send to whoever is.',
-            '',
-            'See the README for the /status schema, and note that the endpoint is unauthenticated.'
-          )
-          Set-Content -Path release-notes.md -Value $notes -Encoding utf8
-
-          gh release create "v$version" $asset --title "v$version" --notes-file release-notes.md
