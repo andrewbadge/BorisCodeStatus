@@ -11,7 +11,7 @@
   <Package
       Name="Claude Code Vitals Relay"
       Manufacturer="ClaudeVitals"
-      Version="1.0.0"
+      Version="$(var.Version)"
       UpgradeCode="5f2a1c7e-9d84-4b31-8c06-1f7a3e5b90d2"
       Scope="perUser"
       Compressed="yes">
@@ -106,13 +106,22 @@
       <Custom Action="LaunchTray" After="InstallFinalize" Condition="NOT Installed AND NOT REMOVE" />
     </InstallExecuteSequence>
 
-    <!-- Stop the running tray before upgrading or removing, or its files stay locked and the
-         install ends in a reboot prompt. -->
+    <!--
+      Stop the running tray before upgrading or removing, or the old process keeps running against
+      replaced binaries and the upgrade silently has no effect until the next login.
+
+      TerminateProcess is required here, not optional. CloseMessage alone sends WM_CLOSE to a
+      matching *window*, and this app deliberately has no window — only a tray icon — so there is
+      nothing for that message to reach. Without TerminateProcess the old process survives every
+      upgrade. Terminating is safe: state is file-backed and every write is atomic, so there is no
+      graceful-shutdown work to lose.
+    -->
     <util:CloseApplication
         xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
         Id="CloseTray"
         Target="ClaudeVitals.Tray.exe"
         CloseMessage="yes"
+        TerminateProcess="1"
         RebootPrompt="no"
         Timeout="10" />
 

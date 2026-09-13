@@ -185,7 +185,15 @@ Get-NetFirewallRule -Direction Inbound | Where-Object DisplayName -like "*Vitals
 The rules that apply are the ones matching the **active** `NetworkCategory`. A laptop on Wi-Fi is
 frequently `Public`, not `Private`.
 
-An administrator fixes it once, per machine:
+**The app handles most of this for you.** Before it binds the port on first run it shows a dialog
+explaining that the Windows prompt is about to appear and why "Allow access" matters. On every
+start it checks the firewall (reading rules needs no elevation) and warns with a tray balloon if
+the display cannot reach it. The tray menu item **Fix firewall access...** reports the current state
+and offers either to run the repair elevated — surfacing the UAC prompt so an administrator can
+approve it — or to copy the exact command to send to whoever administers the machine. It refuses to
+open the `Public` profile unless you explicitly confirm.
+
+The manual equivalent, for an administrator fixing it once per machine:
 
 ```powershell
 # 1. Remove any Block rules left behind by a dismissed prompt
@@ -284,6 +292,33 @@ Run the tests:
 
 ```bash
 dotnet test ClaudeVitals.Core.Tests
+```
+
+### Releases (GitHub Actions)
+
+`.github/workflows/build.yml` builds and tests on every push and pull request, and publishes a
+GitHub Release when a `v*` tag is pushed:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+The tag sets the MSI's `ProductVersion`, so **it must increase between releases** — `MajorUpgrade`
+will refuse to replace an installed copy otherwise. The workflow rejects a tag that is not plain
+`major.minor.build`: an MSI `ProductVersion` cannot carry a `-rc1` style suffix, and failing early
+with a clear message beats failing deep inside the WiX build.
+
+Before publishing, the workflow checks the built MSI: the version was stamped, both executables are
+in the payload, and `ALLUSERS` is unset — that last one is a regression guard, because setting it
+would quietly turn this back into a package that demands administrator rights.
+
+Every run uploads the MSI as a build artifact, tag or not.
+
+To build a versioned MSI locally:
+
+```bash
+dotnet build -c Release -p:Version=1.2.3
 ```
 
 ### Testing the hook by hand
