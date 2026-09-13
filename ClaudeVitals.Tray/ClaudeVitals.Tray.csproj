@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>ClaudeVitals.Tray</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Self-contained so the MSI installs per-user with no runtime prerequisite and no elevation.
+         Not single-file: the ASP.NET Core host starts faster from a normal folder layout, and the
+         MSI ships a directory anyway. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Required to consume the referenced ASP.NET Core project from a WinForms host. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ClaudeVitals.Core\ClaudeVitals.Core.csproj" />
+    <ProjectReference Include="..\ClaudeVitals.Api\ClaudeVitals.Api.csproj" />
+  </ItemGroup>
+
+</Project>
