@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>ClaudeVitals.Api</RootNamespace>
+
+    <!-- A library, not an executable: the tray app hosts this WebApplication in-process so there
+         is only one process to install, run and tray-manage. Kept as its own project so the
+         endpoint can be built and tested independently of the WinForms host. -->
+    <OutputType>Library</OutputType>
+    <IsPublishable>false</IsPublishable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ClaudeVitals.Core\ClaudeVitals.Core.csproj" />
+  </ItemGroup>
+
+</Project>
