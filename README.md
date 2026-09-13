@@ -315,6 +315,24 @@ would quietly turn this back into a package that demands administrator rights.
 
 Every run uploads the MSI as a build artifact, tag or not.
 
+### Artifact cleanup
+
+Each build artifact is around 78 MB, so they dominate the repository's storage quota within days.
+`.github/workflows/cleanup-artifacts.yml` prunes them **daily** at 17:00 UTC — daily rather than
+weekly purely because of that size, since the job itself is only a few API calls.
+
+It deletes artifacts older than 7 days but always keeps the 3 most recent whatever their age, so
+there is always something downloadable. It only ever touches workflow *artifacts*: release assets
+are a separate API and are never considered, so a published release cannot be affected.
+
+Run it by hand from the Actions tab to override the retention, or with **dry run** ticked to see
+what would go without deleting anything.
+
+Worth setting alongside it: GitHub's repository-level artifact retention (Settings → Actions →
+General) defaults to 90 days. Lowering it to 7–14 days gives the same result without any workflow
+running, and the two are complementary — the workflow additionally guarantees the most recent few
+survive.
+
 To build a versioned MSI locally:
 
 ```bash
