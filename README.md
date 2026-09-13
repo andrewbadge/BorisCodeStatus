@@ -294,26 +294,43 @@ Run the tests:
 dotnet test ClaudeVitals.Core.Tests
 ```
 
-### Releases (GitHub Actions)
+### Continuous integration
 
-`.github/workflows/build.yml` builds and tests on every push and pull request, and publishes a
-GitHub Release when a `v*` tag is pushed:
+`.github/workflows/build.yml` builds and tests on every push to `main` and every pull request into
+`main`, and uploads the MSI as a build artifact. It never publishes a release.
 
-```bash
-git tag v1.2.3
-git push origin v1.2.3
-```
+Pushing repeatedly to a PR cancels the superseded run, so a burst of commits costs one build rather
+than several. Runs on `main` are never cancelled, so every merged commit keeps its own result.
 
-The tag sets the MSI's `ProductVersion`, so **it must increase between releases** — `MajorUpgrade`
-will refuse to replace an installed copy otherwise. The workflow rejects a tag that is not plain
-`major.minor.build`: an MSI `ProductVersion` cannot carry a `-rc1` style suffix, and failing early
-with a clear message beats failing deep inside the WiX build.
+### Publishing a release
 
-Before publishing, the workflow checks the built MSI: the version was stamped, both executables are
-in the payload, and `ALLUSERS` is unset — that last one is a regression guard, because setting it
-would quietly turn this back into a package that demands administrator rights.
+`.github/workflows/release.yml` is **run manually**: Actions → Release → *Run workflow*. It asks for
+the version, then builds, tests, verifies and publishes in one go, creating the tag itself so the
+tag and the MSI can never disagree.
 
-Every run uploads the MSI as a build artifact, tag or not.
+| Input | Meaning |
+|---|---|
+| `version` | `1.1.0`, or `v1.1` — normalised to `1.1.0` |
+| `prerelease` | Mark the GitHub Release as a pre-release |
+| `force` | Publish even if the version is not higher than the latest release |
+
+Releasing is deliberately manual rather than triggered by a tag push. Publishing under a permanent
+version number is a decision, not a side effect of pushing a ref.
+
+The version is validated before anything is built, because these failures are cheap to catch and
+expensive to discover afterwards:
+
+- **Not `major.minor.build`** — an MSI `ProductVersion` cannot carry a `-rc1` style suffix.
+- **Any part above 65535** — MSI version fields are 16-bit and Windows silently truncates larger
+  values, producing a package that upgrades unpredictably.
+- **Tag already exists** — pick a new version rather than quietly moving a published tag.
+- **Not higher than the latest release** — `MajorUpgrade` will not replace an installed copy
+  otherwise, so the release would install but never supersede anything. Override with `force` if
+  that is genuinely intended.
+
+The built MSI is then checked before publishing: the version was stamped, both executables are in
+the payload, and `ALLUSERS` is unset — that last one is a regression guard, because setting it would
+quietly turn this back into a package that demands administrator rights.
 
 To build a versioned MSI locally:
 
