@@ -156,19 +156,55 @@ is why the MSI is ~75 MB.
 
 ### The one place admin can appear: Windows Firewall
 
-The first time Kestrel binds a non-loopback address, Windows may show a firewall prompt that only
-an administrator can approve. If it is dismissed or blocked, `/status` still works from
-`localhost` but **not from the ESP32**.
+Installing needs no admin rights. **Reaching the endpoint from the ESP32 usually does**, and this
+is the step most likely to catch you out. It has been hit in practice on a real install.
 
-An administrator can pre-create the rule once, per machine:
+The first time Kestrel binds a non-loopback address, Windows shows a firewall prompt. Approving it
+requires administrator rights. If a non-admin user dismisses or cancels it — which is all they can
+do — Windows does not simply skip the rule: it **creates `Block` rules** for that executable.
+`/status` then still works from `localhost`, but the ESP32 is refused.
+
+Two things make this harder to diagnose than it looks:
+
+- **Block beats Allow.** Windows Firewall evaluates `Block` rules before `Allow` rules, so adding
+  an Allow rule on top of the auto-created Block rules does nothing. The Block rules must be
+  removed first.
+- **Testing from the machine itself proves nothing.** A request to the host's own LAN address
+  (`http://192.168.x.x:5080/health` from that same machine) bypasses inbound firewall filtering and
+  returns `200` even when every external device is blocked. **Only a request from another device is
+  a real test.**
+
+Check the actual state before trusting it:
 
 ```powershell
+Get-NetConnectionProfile | Select-Object InterfaceAlias, NetworkCategory
+Get-NetFirewallRule -Direction Inbound | Where-Object DisplayName -like "*Vitals*" |
+  Select-Object DisplayName, Action, Profile
+```
+
+The rules that apply are the ones matching the **active** `NetworkCategory`. A laptop on Wi-Fi is
+frequently `Public`, not `Private`.
+
+An administrator fixes it once, per machine:
+
+```powershell
+# 1. Remove any Block rules left behind by a dismissed prompt
+Get-NetFirewallRule -Direction Inbound -Action Block |
+  Where-Object { $_.DisplayName -like "*ClaudeVitals*" -or $_.DisplayName -like "claudevitals*" } |
+  Remove-NetFirewallRule
+
+# 2. Mark the network Private, if it is genuinely a home or office LAN
+Set-NetConnectionProfile -InterfaceAlias "Wi-Fi" -NetworkCategory Private
+
+# 3. Allow the relay on that profile only
 New-NetFirewallRule -DisplayName "Claude Vitals Relay" -Direction Inbound `
   -Program "$env:LOCALAPPDATA\Programs\ClaudeVitals\ClaudeVitals.Tray.exe" `
   -Protocol TCP -LocalPort 5080 -Profile Private -Action Allow
 ```
 
-Restrict to `-Profile Private` so the endpoint is never exposed on a public network.
+Prefer `-Profile Private` over `Private,Public`. `/status` is unauthenticated, so opening it on a
+network Windows considers public exposes session cost and usage data to strangers. If the only way
+to reach the display is to allow `Public`, add authentication first.
 
 ### Hook registration: first-run logic, not an MSI custom action
 
@@ -210,7 +246,9 @@ Registered entries:
 }
 ```
 
-Restart Claude Code after installing for the hooks to take effect.
+Claude Code picked the hooks up mid-session on the install that was tested here, without a restart.
+That is not documented behaviour, so if `/status` still reports `null` a minute after installing,
+restart Claude Code before investigating further.
 
 ---
 
@@ -291,7 +329,21 @@ Reads share every file mode and swallow transient I/O errors.
   client tries several plausible property spellings and returns `null` rather than guessing wrong.
   It may simply never populate.
 - **No authentication on `/status`.** See the security note above.
-- **The MSI was verified by static inspection and payload extraction, not by a full install on a
-  clean VM.** Package scope, the HKCU Run key, the install directory chain, and both executables
-  running from the extracted layout were all confirmed; an end-to-end install on a fresh machine is
-  still the right final check before distributing.
+- **Running a development build can hijack your real `~/.claude/settings.json`.** The tray registers
+  whatever path it is currently running from. If `ClaudeVitals.Hooks.exe` happens to sit next to the
+  tray exe in `bin\Debug\...` or `bin\Release\...`, that throwaway build path is written into your
+  global settings — and once the directory is cleaned, every hook silently fails forever, because
+  the hook process is deliberately built never to report errors. The symptom is `/status` returning
+  `null` for everything with nothing logged anywhere. **This has happened in practice.** Check with:
+  ```powershell
+  Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "ClaudeVitals.Hooks.exe"
+  ```
+  If the path points inside a `bin\` folder, reinstall the MSI or use **Re-register hooks** from the
+  tray menu to repoint it. A fix — refusing to register from a `bin\`/`obj\` path, and warning when
+  the registered path no longer exists — is a v1.1 item.
+- **The MSI has been installed and verified on a developer machine, not on a clean VM.** Confirmed
+  on a real per-user install: `msiexec` exit code 0 with no UAC prompt, product registered and
+  uninstallable, files in `%LOCALAPPDATA%\Programs\ClaudeVitals`, HKCU Run key set, hooks
+  re-registered to the install path automatically, and live session data served from `/status`.
+  What that install did *not* cover: a machine with no prior ClaudeVitals state, and the upgrade and
+  uninstall paths. Those are still worth exercising on a fresh VM before distributing.
