@@ -32,6 +32,11 @@ internal static class Program
         var options = VitalsApiOptions.FromEnvironment();
         var store = VitalsStateStore.Default;
 
+        // Deliberately before StartApi: binding a non-loopback port is what raises the Windows
+        // firewall prompt, and a user who meets that prompt with no context tends to dismiss it —
+        // which does not skip the rule, it blocks the app. Explain first, then bind.
+        FirewallGuard.ShowFirstRunNoticeIfNeeded();
+
         WebApplication? api = null;
         try
         {

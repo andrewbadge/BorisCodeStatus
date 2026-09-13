@@ -46,6 +46,7 @@ internal sealed class TrayIcon : IDisposable
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Open dashboard", null, (_, _) => OpenDashboard()));
         menu.Items.Add(new ToolStripMenuItem("Re-register hooks", null, (_, _) => ReRegisterHooks()));
+        menu.Items.Add(new ToolStripMenuItem("Fix firewall access...", null, (_, _) => FixFirewallAccess()));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Exit", null, (_, _) => Application.Exit()));
 
@@ -61,6 +62,46 @@ internal sealed class TrayIcon : IDisposable
 
         _store.Changed += OnStateChanged;
         _store.StartWatching();
+
+        WarnIfFirewallBlocksTheDisplay();
+    }
+
+    /// <summary>
+    /// Checks once at startup whether the firewall will stop the ESP32 reaching us, and says so.
+    /// Without this the failure is silent and looks like the app is broken: /status answers
+    /// perfectly from this PC while the display never updates.
+    ///
+    /// Enumerating firewall rules can take a moment, so it runs off the UI thread.
+    /// </summary>
+    private void WarnIfFirewallBlocksTheDisplay()
+    {
+        Task.Run(() =>
+        {
+            var verdict = FirewallGuard.Detect();
+            if (!verdict.BlocksTheDisplay)
+            {
+                return;
+            }
+
+            _uiContext.Post(
+                _ =>
+                {
+                    if (_disposed)
+                    {
+                        return;
+                    }
+
+                    var reason = verdict.State == FirewallState.Blocked
+                        ? "the Windows firewall prompt was dismissed, which blocks it"
+                        : "no firewall rule allows it";
+
+                    ShowBalloon(
+                        $"Your display probably cannot reach this PC, because {reason}. " +
+                        "Right-click here and choose \"Fix firewall access\".",
+                        ToolTipIcon.Warning);
+                },
+                null);
+        });
     }
 
     private void OnStateChanged(VitalsState state) => _uiContext.Post(_ => Refresh(state), null);
@@ -184,6 +225,100 @@ internal sealed class TrayIcon : IDisposable
             ShowBalloon($"Could not update settings.json: {ex.Message}", ToolTipIcon.Error);
         }
     }
+
+    /// <summary>
+    /// Reports the current firewall state and offers the two things a user can actually do:
+    /// run the fix elevated (if an administrator is available), or copy the command to send to
+    /// whoever administers the machine. Re-runnable at any time — the fix is idempotent.
+    /// </summary>
+    private void FixFirewallAccess()
+    {
+        var verdict = FirewallGuard.Detect();
+
+        if (verdict.State == FirewallState.Allowed)
+        {
+            var again = MessageBox.Show(
+                $"A firewall rule already allows the relay on your {verdict.ProfileName} network, " +
+                "so your display should be able to reach it.\r\n\r\nRe-apply the rule anyway?",
+                "Claude Code Vitals Relay — firewall",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Information);
+
+            if (again != DialogResult.Yes)
+            {
+                return;
+            }
+        }
+
+        // Only open the endpoint on a "Public" network if the user knowingly asks for it: /status
+        // has no authentication, so this decision is theirs to make explicitly.
+        var includePublic = false;
+        if (verdict.IsPublicNetwork)
+        {
+            var choice = MessageBox.Show(
+                "Windows currently classes this network as Public.\r\n\r\n" +
+                "The status endpoint has no authentication, so allowing it on a public network " +
+                "would expose your usage and cost data to anyone on that network.\r\n\r\n" +
+                "If this is really your home or office network, the better fix is to have an " +
+                "administrator mark it Private. The command copied by this dialog includes that step.\r\n\r\n" +
+                "Allow on the Public profile anyway?",
+                "Claude Code Vitals Relay — public network",
+                MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Warning);
+
+            if (choice == DialogResult.Cancel)
+            {
+                return;
+            }
+
+            includePublic = choice == DialogResult.Yes;
+        }
+
+        var action = MessageBox.Show(
+            DescribeFirewallState(verdict) + "\r\n\r\n" +
+            "Changing firewall rules needs administrator rights.\r\n\r\n" +
+            "  Yes  — try now (Windows will ask for administrator approval)\r\n" +
+            "  No   — copy the command, to send to whoever administers this PC\r\n" +
+            "  Cancel — do nothing",
+            "Claude Code Vitals Relay — fix firewall access",
+            MessageBoxButtons.YesNoCancel,
+            MessageBoxIcon.Question);
+
+        switch (action)
+        {
+            case DialogResult.Yes:
+                var applied = FirewallGuard.TryApplyElevated(includePublic, out var message);
+                ShowBalloon(message, applied ? ToolTipIcon.Info : ToolTipIcon.Warning);
+                break;
+
+            case DialogResult.No:
+                var copied = FirewallGuard.TryCopyScriptToClipboard(includePublic);
+                ShowBalloon(
+                    copied
+                        ? "Command copied. Send it to your administrator and ask them to run it in PowerShell."
+                        : "Could not copy to the clipboard.",
+                    copied ? ToolTipIcon.Info : ToolTipIcon.Warning);
+                break;
+        }
+    }
+
+    private static string DescribeFirewallState(FirewallVerdict verdict) => verdict.State switch
+    {
+        FirewallState.Blocked =>
+            $"The firewall is blocking the relay on your {verdict.ProfileName} network.\r\n\r\n" +
+            "This happens when the Windows firewall prompt is dismissed: Windows does not skip " +
+            "the rule, it records one that blocks the app. Your display cannot reach this PC.",
+
+        FirewallState.NoRule =>
+            $"No firewall rule allows the relay on your {verdict.ProfileName} network, so Windows " +
+            "will refuse incoming connections. Your display cannot reach this PC.",
+
+        FirewallState.Allowed =>
+            $"A rule already allows the relay on your {verdict.ProfileName} network.",
+
+        _ =>
+            "The firewall state could not be determined. Applying the rule is harmless either way.",
+    };
 
     private void ShowBalloon(string message, ToolTipIcon icon)
     {

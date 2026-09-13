@@ -1,0 +1,165 @@
+name: Build
+
+# Builds and tests on every push and PR, and publishes a GitHub Release when a v* tag is pushed.
+#
+#   git tag v1.2.3 && git push origin v1.2.3
+#
+# The tag drives the MSI's ProductVersion. That version MUST increase between releases or the
+# MSI's MajorUpgrade will refuse to replace an already-installed copy.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to stamp on the MSI (e.g. 1.2.3). Does not create a release.'
+        required: false
+        default: '1.0.0'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Windows is not a preference here: the tray app targets net10.0-windows and WiX only runs on Windows.
+    runs-on: windows-latest
+
+    permissions:
+      contents: write # Required only by the release step below; harmless on other triggers.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # The .wixproj gets the WiX MSBuild SDK and heat from NuGet, but the CLI tool is installed
+      # too so the build does not depend on which of the two provides a given target.
+      # Pinned to 4.0.5: WiX v7 refuses to run without accepting the Open Source Maintenance Fee
+      # EULA, which is a licensing decision rather than a technical one.
+      - name: Install WiX v4
+        run: dotnet tool install --global wix --version 4.0.5
+
+      - name: Determine version
+        id: version
+        shell: pwsh
+        run: |
+          # A v* tag is the source of truth for a release build; everything else gets a placeholder.
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $version = $env:GITHUB_REF -replace '^refs/tags/v', ''
+          } elseif ('${{ github.event.inputs.version }}') {
+            $version = '${{ github.event.inputs.version }}'
+          } else {
+            $version = '1.0.0'
+          }
+
+          # MSI ProductVersion must be numeric major.minor.build, so reject anything else early
+          # rather than failing deep inside the WiX build with a less obvious message.
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Error "Version '$version' is not major.minor.build (e.g. 1.2.3). MSI ProductVersion cannot contain a suffix."
+            exit 1
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Building version $version"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Test
+        run: dotnet test ClaudeVitals.Core.Tests -c Release --no-restore
+
+      # Builds the whole solution, which includes the installer project, so the MSI is a normal
+      # build output rather than a separate packaging step.
+      - name: Build MSI
+        run: dotnet build -c Release --no-restore -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Verify the MSI looks right
+        shell: pwsh
+        run: |
+          # Cheap guard against shipping a package that built but is wrong: confirm the version was
+          # stamped and that both executables actually made it into the payload.
+          $msi = "ClaudeVitals.Installer\bin\Release\ClaudeVitals.msi"
+          if (-not (Test-Path $msi)) { throw "MSI was not produced at $msi" }
+
+          $installer = New-Object -ComObject WindowsInstaller.Installer
+          $db = $installer.GetType().InvokeMember("OpenDatabase","InvokeMethod",$null,$installer,@((Resolve-Path $msi).Path, 0))
+
+          function Invoke-MsiQuery($sql, $columns) {
+            $view = $db.GetType().InvokeMember("OpenView","InvokeMethod",$null,$db,@($sql))
+            $view.GetType().InvokeMember("Execute","InvokeMethod",$null,$view,$null)
+            $rows = @()
+            while ($true) {
+              $record = $view.GetType().InvokeMember("Fetch","InvokeMethod",$null,$view,$null)
+              if ($null -eq $record) { break }
+              $values = @()
+              for ($c = 1; $c -le $columns; $c++) {
+                $values += $record.GetType().InvokeMember("StringData","GetProperty",$null,$record,@($c))
+              }
+              $rows += ,($values -join '|')
+            }
+            $rows
+          }
+
+          $expected = '${{ steps.version.outputs.version }}'
+          $actual = (Invoke-MsiQuery "SELECT ``Property``, ``Value`` FROM ``Property``" 2 |
+                     Where-Object { $_ -like 'ProductVersion|*' }) -replace '^ProductVersion\|', ''
+          if ($actual -ne $expected) { throw "MSI ProductVersion is '$actual', expected '$expected'" }
+
+          $files = Invoke-MsiQuery "SELECT ``FileName`` FROM ``File``" 1
+          foreach ($required in @('ClaudeVitals.Tray.exe', 'ClaudeVitals.Hooks.exe')) {
+            if (-not ($files | Where-Object { $_ -like "*$required" })) { throw "$required is missing from the MSI" }
+          }
+
+          # A per-user install must not set ALLUSERS; if it ever does, the package starts demanding
+          # elevation and the whole no-admin design is quietly broken.
+          if (Invoke-MsiQuery "SELECT ``Property``, ``Value`` FROM ``Property``" 2 | Where-Object { $_ -like 'ALLUSERS|*' }) {
+            throw "ALLUSERS is set - the package would require administrator rights"
+          }
+
+          Write-Host "MSI verified: version $actual, $($files.Count) files, per-user scope"
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClaudeVitals-${{ steps.version.outputs.version }}-msi
+          path: ClaudeVitals.Installer/bin/Release/ClaudeVitals.msi
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+
+          # Name the asset after the version so downloads are distinguishable once saved.
+          $asset = "ClaudeVitals-$version.msi"
+          Copy-Item "ClaudeVitals.Installer\bin\Release\ClaudeVitals.msi" $asset
+
+          # Built as an array rather than a here-string: PowerShell treats a backtick as an escape
+          # character, so markdown code spans inside a here-string would be silently mangled.
+          # Written to a file and passed with --notes-file to avoid multi-line argument quoting.
+          $notes = @(
+            'Per-user Windows installer for the Claude Code Vitals Relay.',
+            '',
+            "**Install:** run $asset. No administrator rights are required - it installs under",
+            'your local app data, starts at login via an HKCU Run key, and registers its Claude Code',
+            'hooks on first launch.',
+            '',
+            '**After installing,** Windows will ask whether to allow the relay through the firewall.',
+            'Choose **Allow access**. Without it your ESP32 display can never reach the endpoint, even',
+            'though everything looks fine on the PC itself. If you are not an administrator, use',
+            '**Fix firewall access** in the tray menu to get the exact command to send to whoever is.',
+            '',
+            'See the README for the /status schema, and note that the endpoint is unauthenticated.'
+          )
+          Set-Content -Path release-notes.md -Value $notes -Encoding utf8
+
+          gh release create "v$version" $asset --title "v$version" --notes-file release-notes.md
