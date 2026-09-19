@@ -1,8 +1,0 @@
-<Solution>
-  <Project Path="ClaudeVitals.Api/ClaudeVitals.Api.csproj" />
-  <Project Path="ClaudeVitals.Core.Tests/ClaudeVitals.Core.Tests.csproj" />
-  <Project Path="ClaudeVitals.Core/ClaudeVitals.Core.csproj" />
-  <Project Path="ClaudeVitals.Hooks/ClaudeVitals.Hooks.csproj" />
-  <Project Path="ClaudeVitals.Installer/ClaudeVitals.Installer.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" />
-  <Project Path="ClaudeVitals.Tray/ClaudeVitals.Tray.csproj" />
-</Solution>

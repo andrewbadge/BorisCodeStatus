@@ -78,7 +78,7 @@ jobs:
         run: dotnet restore
 
       - name: Test
-        run: dotnet test ClaudeVitals.Core.Tests -c Release --no-restore
+        run: dotnet test FidoRelay.Core.Tests -c Release --no-restore
 
       # Builds the whole solution, which includes the installer project, so the MSI is a normal
       # build output rather than a separate packaging step.
@@ -90,7 +90,7 @@ jobs:
         run: |
           # Cheap guard against shipping a package that built but is wrong: confirm the version was
           # stamped and that both executables actually made it into the payload.
-          $msi = "ClaudeVitals.Installer\bin\Release\ClaudeVitals.msi"
+          $msi = "FidoRelay.Installer\bin\Release\FidoRelay.msi"
           if (-not (Test-Path $msi)) { throw "MSI was not produced at $msi" }
 
           $installer = New-Object -ComObject WindowsInstaller.Installer
@@ -118,7 +118,7 @@ jobs:
           if ($actual -ne $expected) { throw "MSI ProductVersion is '$actual', expected '$expected'" }
 
           $files = Invoke-MsiQuery "SELECT ``FileName`` FROM ``File``" 1
-          foreach ($required in @('ClaudeVitals.Tray.exe', 'ClaudeVitals.Hooks.exe')) {
+          foreach ($required in @('FidoRelay.Tray.exe', 'FidoRelay.Hooks.exe')) {
             if (-not ($files | Where-Object { $_ -like "*$required" })) { throw "$required is missing from the MSI" }
           }
 
@@ -133,6 +133,6 @@ jobs:
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ClaudeVitals-${{ steps.version.outputs.version }}-msi
-          path: ClaudeVitals.Installer/bin/Release/ClaudeVitals.msi
+          name: FidoRelay-${{ steps.version.outputs.version }}-msi
+          path: FidoRelay.Installer/bin/Release/FidoRelay.msi
           if-no-files-found: error

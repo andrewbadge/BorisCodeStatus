@@ -8,8 +8,8 @@
 
     <!-- Single source of the version stamped onto every assembly and onto the MSI. -->
     <Version>1.0.0</Version>
-    <Product>Claude Code Vitals Relay</Product>
-    <Company>ClaudeVitals</Company>
+    <Product>FidoRelay</Product>
+    <Company>FidoRelay</Company>
   </PropertyGroup>
 
 </Project>

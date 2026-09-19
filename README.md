@@ -1,4 +1,4 @@
-# Claude Code Vitals Relay
+# FidoRelay
 
 A small Windows user-mode background app that exposes Claude Code session and usage data over
 HTTP on the local network, so an ESP32-based physical display (CrowPanel) can poll it.
@@ -6,11 +6,11 @@ HTTP on the local network, so an ESP32-based physical display (CrowPanel) can po
 It runs as a system-tray icon — no console window, no Windows service, no administrator rights.
 
 ```
- Claude Code ──stdin JSON──▶ ClaudeVitals.Hooks.exe ──writes──▶ %LOCALAPPDATA%\ClaudeVitals\state.json
+ Claude Code ──stdin JSON──▶ FidoRelay.Hooks.exe ──writes──▶ %LOCALAPPDATA%\FidoRelay\state.json
   (statusLine +                (runs once per event,                          │
    lifecycle hooks)             then exits)                                   │ FileSystemWatcher
                                                                               ▼
-                                            ClaudeVitals.Tray.exe ── hosts ──▶ GET /status  ◀── ESP32
+                                            FidoRelay.Tray.exe ── hosts ──▶ GET /status  ◀── ESP32
                                              (tray icon + in-process API)         :5080
 ```
 
@@ -51,6 +51,35 @@ statusLine carries no lifecycle signal, so the tray animation state comes from s
 
 All four invoke the same executable; the verb argument distinguishes them.
 
+### 2b. Session hooks — is a session open at all (`session_status`)
+
+`activity` answers a narrower question than it looks like it does. `Stop` fires the moment a turn
+finishes, so a session you are actively chatting in reports `Idle` for most of its wall-clock
+life — all the time spent reading a reply and typing the next prompt. A display that wants
+"a session is open" rather than "Claude is generating right now" needs a second signal.
+
+| Hook | Verb argument | Effect |
+|---|---|---|
+| `SessionStart` | `sessionstart` | `session_status` → `Active`, clears any previous end |
+| `SessionEnd` | `sessionend` | `session_status` → `Ended` |
+
+These deliberately leave `activity` untouched — the two signals are independent.
+
+`session_status` is **computed per request**, not stored, because a session going quiet writes
+nothing to the state file and a stored value would sit at `Active` forever:
+
+| Value | Meaning |
+|---|---|
+| `Unknown` | No session event seen yet in this install |
+| `Active` | An event arrived within the last 15 minutes and no `SessionEnd` followed it |
+| `Inactive` | No event for over 15 minutes — inferred, this is what a session killed without firing `SessionEnd` decays into |
+| `Ended` | `SessionEnd` fired; the session closed cleanly |
+
+Any session event refreshes it — statusLine and all four lifecycle hooks, not just the session
+hooks — so `Active` holds through a normal conversation. The 15-minute timeout
+(`VitalsState.SessionIdleTimeout`) is deliberately generous: flapping between `Active` and
+`Inactive` while the user reads a long reply would be worse than reacting slowly.
+
 ### 3. `/api/oauth/usage` — fallback only
 
 An **undocumented** Anthropic endpoint, used only for the one figure hooks cannot supply: the
@@ -78,14 +107,14 @@ API call.
 
 | Project | Target | Role |
 |---|---|---|
-| `ClaudeVitals.Core` | `net10.0` | Models, state store, settings merger, usage API client |
-| `ClaudeVitals.Core.Tests` | `net10.0` | 47 unit tests over parsing, state, merging, throttling |
-| `ClaudeVitals.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
-| `ClaudeVitals.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
-| `ClaudeVitals.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
-| `ClaudeVitals.Installer` | WiX v4 | Produces `ClaudeVitals.msi` |
+| `FidoRelay.Core` | `net10.0` | Models, state store, settings merger, usage API client |
+| `FidoRelay.Core.Tests` | `net10.0` | 65 unit tests over parsing, state, merging, throttling, rename migration |
+| `FidoRelay.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
+| `FidoRelay.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
+| `FidoRelay.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
+| `FidoRelay.Installer` | WiX v4 | Produces `FidoRelay.msi` |
 
-`ClaudeVitals.Api` is a library, not an executable: the tray app starts its `WebApplication`
+`FidoRelay.Api` is a library, not an executable: the tray app starts its `WebApplication`
 in-process so there is one process to install, run and tray-manage. It stays a separate project so
 the endpoint can be built and tested independently of the WinForms host.
 
@@ -99,7 +128,7 @@ GET http://<host>:5080/health
 ```
 
 Bound to `0.0.0.0` so the ESP32 can reach it across the LAN. Port is overridable with the
-`CLAUDEVITALS_PORT` environment variable. CORS allows all origins.
+`FIDORELAY_PORT` environment variable. CORS allows all origins.
 
 ```json
 {
@@ -109,20 +138,28 @@ Bound to `0.0.0.0` so the ESP32 can reach it across the LAN. Port is overridable
   "context_used_percentage": 37.5,
   "model_display_name": "Opus 5",
   "session_id": "abc-123",
-  "session_name": "vitals relay",
+  "session_name": "fido relay",
   "session_cost_usd": 1.2345,
   "session_duration_ms": 843000,
   "month_cost_usd": null,
   "activity": "Working",
   "activity_changed_utc": "2026-09-13T08:03:43+00:00",
+  "session_status": "Active",
+  "last_event_utc": "2026-09-13T08:03:43+00:00",
+  "session_ended_utc": null,
   "last_updated_utc": "2026-09-13T08:03:43+00:00",
   "usage_api_last_success_utc": null,
   "age_seconds": 0
 }
 ```
 
-`resets_in_minutes` and `age_seconds` are computed per request, so the firmware does not need a
-clock or timezone handling. `age_seconds` lets the display grey out stale data.
+`resets_in_minutes`, `age_seconds` and `session_status` are computed per request, so the firmware
+does not need a clock or timezone handling. `age_seconds` lets the display grey out stale data.
+
+`activity` is "what Claude is doing this turn"; `session_status` is "is a session open" — see
+[Session hooks](#2b-session-hooks--is-a-session-open-at-all-session_status). `last_event_utc`
+differs from `last_updated_utc`, which also moves for background writes such as the usage-API
+refresh; only `last_event_utc` tracks actual session events.
 
 ### ⚠️ Security: the endpoint is unauthenticated
 
@@ -139,13 +176,13 @@ checked in a one-line middleware, with the token stored next to `state.json`.
 ## Install
 
 ```
-ClaudeVitals.msi
+FidoRelay.msi
 ```
 
 **No administrator rights are required**, by design:
 
 - per-user MSI (`Scope="perUser"`, no `ALLUSERS`) — no UAC prompt
-- installs to `%LOCALAPPDATA%\Programs\ClaudeVitals` — not `Program Files`
+- installs to `%LOCALAPPDATA%\Programs\FidoRelay` — not `Program Files`
 - starts at login via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 - no Windows service, no scheduled task
 - Kestrel binds `0.0.0.0:5080` with a plain socket, so no `netsh http add urlacl` reservation is
@@ -178,7 +215,7 @@ Check the actual state before trusting it:
 
 ```powershell
 Get-NetConnectionProfile | Select-Object InterfaceAlias, NetworkCategory
-Get-NetFirewallRule -Direction Inbound | Where-Object DisplayName -like "*Vitals*" |
+Get-NetFirewallRule -Direction Inbound | Where-Object DisplayName -like "*FidoRelay*" |
   Select-Object DisplayName, Action, Profile
 ```
 
@@ -198,15 +235,15 @@ The manual equivalent, for an administrator fixing it once per machine:
 ```powershell
 # 1. Remove any Block rules left behind by a dismissed prompt
 Get-NetFirewallRule -Direction Inbound -Action Block |
-  Where-Object { $_.DisplayName -like "*ClaudeVitals*" -or $_.DisplayName -like "claudevitals*" } |
+  Where-Object { $_.DisplayName -like "*FidoRelay*" -or $_.DisplayName -like "fidorelay*" } |
   Remove-NetFirewallRule
 
 # 2. Mark the network Private, if it is genuinely a home or office LAN
 Set-NetConnectionProfile -InterfaceAlias "Wi-Fi" -NetworkCategory Private
 
 # 3. Allow the relay on that profile only
-New-NetFirewallRule -DisplayName "Claude Vitals Relay" -Direction Inbound `
-  -Program "$env:LOCALAPPDATA\Programs\ClaudeVitals\ClaudeVitals.Tray.exe" `
+New-NetFirewallRule -DisplayName "FidoRelay" -Direction Inbound `
+  -Program "$env:LOCALAPPDATA\Programs\FidoRelay\FidoRelay.Tray.exe" `
   -Protocol TCP -LocalPort 5080 -Profile Private -Action Allow
 ```
 
@@ -231,7 +268,7 @@ during installation from the user's point of view.
 
 **`settings.json` is read-modify-written as a JSON tree, never regenerated.** Unrelated
 configuration (permissions, theme, env, other hooks) is preserved, the original is backed up once
-to `settings.json.claudevitals.bak`, and an unparseable file is left completely untouched.
+to `settings.json.fidorelay.bak`, and an unparseable file is left completely untouched.
 
 **An existing third-party `statusLine` is never overwritten.** If one is present the app leaves it
 alone and warns instead — remove the `statusLine` entry from `settings.json` by hand to switch over.
@@ -243,13 +280,15 @@ Registered entries:
 {
   "statusLine": {
     "type": "command",
-    "command": "\"%LOCALAPPDATA%\\Programs\\ClaudeVitals\\ClaudeVitals.Hooks.exe\" statusline"
+    "command": "\"%LOCALAPPDATA%\\Programs\\FidoRelay\\FidoRelay.Hooks.exe\" statusline"
   },
   "hooks": {
     "Notification":     [{ "hooks": [{ "type": "command", "command": "\"...\" notification" }] }],
     "Stop":             [{ "hooks": [{ "type": "command", "command": "\"...\" stop" }] }],
     "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"...\" userpromptsubmit" }] }],
-    "PreToolUse":       [{ "matcher": "*", "hooks": [{ "type": "command", "command": "\"...\" pretooluse" }] }]
+    "PreToolUse":       [{ "matcher": "*", "hooks": [{ "type": "command", "command": "\"...\" pretooluse" }] }],
+    "SessionStart":     [{ "hooks": [{ "type": "command", "command": "\"...\" sessionstart" }] }],
+    "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "\"...\" sessionend" }] }]
   }
 }
 ```
@@ -281,7 +320,7 @@ dotnet tool install --global wix --version 4.0.5
 dotnet build -c Release
 ```
 
-A Release build of the solution produces `ClaudeVitals.Installer\bin\Release\ClaudeVitals.msi` as a
+A Release build of the solution produces `FidoRelay.Installer\bin\Release\FidoRelay.msi` as a
 normal build output — no separate packaging step.
 
 > **WiX version:** pinned to **4.0.5**. WiX v7 requires accepting the Open Source Maintenance Fee
@@ -291,7 +330,7 @@ normal build output — no separate packaging step.
 Run the tests:
 
 ```bash
-dotnet test ClaudeVitals.Core.Tests
+dotnet test FidoRelay.Core.Tests
 ```
 
 ### Continuous integration
@@ -360,12 +399,15 @@ dotnet build -c Release -p:Version=1.2.3
 
 ```bash
 echo '{"model":{"display_name":"Opus 5"},"rate_limits":{"five_hour":{"used_percentage":42}}}' \
-  | ClaudeVitals.Hooks.exe statusline
+  | FidoRelay.Hooks.exe statusline
 
-echo '{"hook_event_name":"Notification"}' | ClaudeVitals.Hooks.exe notification
+echo '{"hook_event_name":"Notification"}' | FidoRelay.Hooks.exe notification
+
+echo '{"hook_event_name":"SessionStart"}' | FidoRelay.Hooks.exe sessionstart
+echo '{"hook_event_name":"SessionEnd"}'   | FidoRelay.Hooks.exe sessionend
 ```
 
-Then check `%LOCALAPPDATA%\ClaudeVitals\state.json`, or `curl http://localhost:5080/status` with the
+Then check `%LOCALAPPDATA%\FidoRelay\state.json`, or `curl http://localhost:5080/status` with the
 tray running.
 
 ---
@@ -387,33 +429,59 @@ Reads share every file mode and swallow transient I/O errors.
 
 ---
 
+## Upgrading from ClaudeVitals
+
+This project was called **ClaudeVitals** before it was renamed to FidoRelay, to pair with the
+[FidoESP32](https://github.com/andrewbadge/FidoESP32) display firmware and to stop the product name
+implying it is an Anthropic product.
+
+The rename changes the install directory, the executables, the state directory, the firewall rule
+and the port environment variable, so an existing install needs carrying over. Three things happen
+automatically on first run of the new version:
+
+| What | Handling |
+|---|---|
+| `%LOCALAPPDATA%\ClaudeVitals\state.json` and the usage-API stamp | Copied into `%LOCALAPPDATA%\FidoRelay` once, never overwriting a newer file. The old directory is left in place and can be deleted by hand. |
+| Hook entries in `~/.claude/settings.json` | Recognised as ours and **repointed**, not duplicated. Without this the old entries would remain, invoking a missing exe on every event — silently, because the hook never reports errors. |
+| A `Claude Vitals Relay` firewall rule | Removed by the firewall fix script, since it names the old install path as its `-Program` and can never match again. |
+
+The MSI keeps its original `UpgradeCode`, so the new package supersedes an installed ClaudeVitals
+rather than installing alongside it. Two things you must do by hand:
+
+- **`CLAUDEVITALS_PORT` is now `FIDORELAY_PORT`.** If you set it, set the new one — the old name is
+  not read as a fallback.
+- **Uninstalling the old version first is not required, but if you do**, it leaves its hook entries
+  behind pointing at a deleted exe (see below); installing FidoRelay afterwards repoints them.
+
+---
+
 ## Known limitations
 
 - **Uninstall does not remove the hook entries from `~/.claude/settings.json`.** The Run key,
   installed files and Start Menu shortcut are all removed cleanly, but the `statusLine` and `hooks`
   entries remain and will point at a missing executable. Claude Code tolerates this (the commands
   simply fail), but the entries should be removed by hand, or restored from
-  `settings.json.claudevitals.bak`. Automating this is a v1.1 item.
+  `settings.json.fidorelay.bak`. Automating this is a v1.1 item.
 - **`month_cost_usd` is always `null`.** See above — no data source provides it.
 - **`week_sonnet` depends on an undocumented endpoint** whose response shape is not contractual. The
   client tries several plausible property spellings and returns `null` rather than guessing wrong.
   It may simply never populate.
 - **No authentication on `/status`.** See the security note above.
 - **Running a development build can hijack your real `~/.claude/settings.json`.** The tray registers
-  whatever path it is currently running from. If `ClaudeVitals.Hooks.exe` happens to sit next to the
+  whatever path it is currently running from. If `FidoRelay.Hooks.exe` happens to sit next to the
   tray exe in `bin\Debug\...` or `bin\Release\...`, that throwaway build path is written into your
   global settings — and once the directory is cleaned, every hook silently fails forever, because
   the hook process is deliberately built never to report errors. The symptom is `/status` returning
   `null` for everything with nothing logged anywhere. **This has happened in practice.** Check with:
   ```powershell
-  Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "ClaudeVitals.Hooks.exe"
+  Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "FidoRelay.Hooks.exe"
   ```
   If the path points inside a `bin\` folder, reinstall the MSI or use **Re-register hooks** from the
   tray menu to repoint it. A fix — refusing to register from a `bin\`/`obj\` path, and warning when
   the registered path no longer exists — is a v1.1 item.
 - **The MSI has been installed and verified on a developer machine, not on a clean VM.** Confirmed
   on a real per-user install: `msiexec` exit code 0 with no UAC prompt, product registered and
-  uninstallable, files in `%LOCALAPPDATA%\Programs\ClaudeVitals`, HKCU Run key set, hooks
+  uninstallable, files in `%LOCALAPPDATA%\Programs\FidoRelay`, HKCU Run key set, hooks
   re-registered to the install path automatically, and live session data served from `/status`.
-  What that install did *not* cover: a machine with no prior ClaudeVitals state, and the upgrade and
+  What that install did *not* cover: a machine with no prior FidoRelay state, and the upgrade and
   uninstall paths. Those are still worth exercising on a fresh VM before distributing.
