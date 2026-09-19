@@ -23,6 +23,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly VitalsStateStore _store;
     private readonly VitalsApiHost _api;
     private readonly ToolStripMenuItem _pauseItem;
+    private readonly ToolStripMenuItem _notificationsItem;
     private readonly int _port;
     private readonly SynchronizationContext _uiContext;
 
@@ -42,6 +43,13 @@ internal sealed class TrayIcon : IDisposable
     private DogState _renderedDog = (DogState)(-1);
     private int _renderedQuotaBucket = -1;
     private bool _pausePersisted = true;
+
+    /// <summary>
+    /// When the wait we last notified about began. Guards against re-notifying the same prompt
+    /// every time <see cref="Refresh"/> runs, which includes every pose-timer tick.
+    /// </summary>
+    private DateTimeOffset? _lastNotifiedWaitAt;
+
     private bool _disposed;
 
     public TrayIcon(VitalsStateStore store, int port, VitalsApiHost api)
@@ -68,7 +76,15 @@ internal sealed class TrayIcon : IDisposable
         // Everything actionable sits under Advanced: the top level is then purely the current
         // figures, which is what someone opening the menu is almost always here to read.
         // Double-clicking the icon still opens the browser, so the common action keeps a shortcut.
+        // Enabled by default; the tick reflects what is stored, not what a click will do.
+        _notificationsItem = new ToolStripMenuItem("Notify when waiting", null, (_, _) => ToggleNotifications())
+        {
+            Checked = NotificationPreference.AreEnabled(),
+            CheckOnClick = false,
+        };
+
         var advanced = new ToolStripMenuItem("Advanced");
+        advanced.DropDownItems.Add(_notificationsItem);
         advanced.DropDownItems.Add(_pauseItem);
         advanced.DropDownItems.Add(new ToolStripSeparator());
         advanced.DropDownItems.Add(new ToolStripMenuItem("Open in Browser", null, (_, _) => OpenDashboard()));
@@ -172,6 +188,50 @@ internal sealed class TrayIcon : IDisposable
         _pauseItem.Checked = paused;
 
         UpdateIcon(state);
+        NotifyIfWaitingForInput(state);
+    }
+
+    /// <summary>
+    /// Raises a notification when Claude Code starts waiting on the user — the one state the user
+    /// needs to act on, and the easiest to miss while looking at something else.
+    ///
+    /// Fires on the transition only. <see cref="Refresh"/> runs on every state write and every
+    /// pose-timer tick, so notifying on "is Waiting" would repeat the same prompt indefinitely;
+    /// keying off <see cref="VitalsState.ActivityChangedUtc"/> means one notification per wait,
+    /// and a second prompt in the same session still gets its own because the timestamp moves.
+    /// </summary>
+    private void NotifyIfWaitingForInput(VitalsState state)
+    {
+        if (state.Activity != ActivityState.Waiting)
+        {
+            // Forget the last one, so returning to Waiting later notifies again even in the
+            // unlikely event the timestamp repeats.
+            _lastNotifiedWaitAt = null;
+            return;
+        }
+
+        var waitingSince = state.ActivityChangedUtc;
+        if (waitingSince == _lastNotifiedWaitAt)
+        {
+            return;
+        }
+
+        _lastNotifiedWaitAt = waitingSince;
+
+        // Checked at the moment of use rather than cached, so turning notifications off takes
+        // effect immediately rather than at the next restart.
+        if (!NotificationPreference.AreEnabled())
+        {
+            return;
+        }
+
+        // The hook's own text names what is blocked, e.g. "Claude needs your permission to use
+        // Bash". Falling back to something plain is better than an empty balloon if it is absent.
+        var detail = string.IsNullOrWhiteSpace(state.WaitingMessage)
+            ? "Claude Code is waiting for your input."
+            : state.WaitingMessage!;
+
+        ShowBalloon(detail, ToolTipIcon.Warning, "Claude is waiting for you");
     }
 
     private void UpdateIcon(VitalsState state)
@@ -328,6 +388,34 @@ internal sealed class TrayIcon : IDisposable
             TaskScheduler.Default);
     }
 
+    /// <summary>
+    /// Turns the waiting notification on or off. Cheap enough to do inline on the UI thread —
+    /// it is one small file write, unlike pausing, which stops a web host.
+    /// </summary>
+    private void ToggleNotifications()
+    {
+        var enabled = !_notificationsItem.Checked;
+        _notificationsItem.Checked = enabled;
+
+        if (!NotificationPreference.TrySetEnabled(enabled))
+        {
+            // The tick already moved, and the setting is read at the moment of use, so the change
+            // is live either way — it just will not survive a restart.
+            ShowBalloon(
+                "That preference could not be saved, so notifications will return to their "
+                + "previous setting when FidoRelay restarts.",
+                ToolTipIcon.Warning);
+            return;
+        }
+
+        // Confirm only when switching on, and by demonstrating the thing itself. Confirming a
+        // switch-off with a notification would be a small joke at the user's expense.
+        if (enabled)
+        {
+            ShowBalloon("You will be notified when Claude is waiting for you.", ToolTipIcon.Info);
+        }
+    }
+
     private void OpenDashboard() => OpenUrl($"http://localhost:{_port}/status");
 
     private void OpenUrl(string url)
@@ -482,9 +570,9 @@ internal sealed class TrayIcon : IDisposable
             "The firewall state could not be determined. Applying the rule is harmless either way.",
     };
 
-    private void ShowBalloon(string message, ToolTipIcon icon)
+    private void ShowBalloon(string message, ToolTipIcon icon, string? title = null)
     {
-        _notifyIcon.BalloonTipTitle = "FidoRelay";
+        _notifyIcon.BalloonTipTitle = title ?? "FidoRelay";
         _notifyIcon.BalloonTipText = message;
         _notifyIcon.BalloonTipIcon = icon;
         _notifyIcon.ShowBalloonTip(5000);

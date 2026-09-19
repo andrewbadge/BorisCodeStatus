@@ -16,6 +16,13 @@ public static class VitalsPaths
     /// <summary>Present when the user has paused the HTTP service. Its existence is the flag.</summary>
     public static string PausedFlagFile => Path.Combine(DataDirectory, "http-paused.flag");
 
+    /// <summary>
+    /// Present when the user has turned notifications off. Marks the non-default setting, since
+    /// notifications are on out of the box.
+    /// </summary>
+    public static string NotificationsDisabledFlagFile =>
+        Path.Combine(DataDirectory, "notifications-disabled.flag");
+
     /// <summary>~\.claude</summary>
     public static string ClaudeDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),

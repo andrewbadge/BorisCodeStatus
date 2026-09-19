@@ -76,6 +76,12 @@ public static class VitalsUpdates
                 : now,
             SessionId = Coalesce(hook?.SessionId, current.SessionId),
             LastEventUtc = now,
+
+            // Only Waiting carries a message, and only its own: leaving the state clears it, so a
+            // permission prompt from ten minutes ago can never be shown against a later state.
+            WaitingMessage = activity == ActivityState.Waiting
+                ? Coalesce(hook?.Message, current.WaitingMessage)
+                : null,
         };
     }
 
