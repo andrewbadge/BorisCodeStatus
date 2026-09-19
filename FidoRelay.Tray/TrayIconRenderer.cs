@@ -7,7 +7,7 @@ namespace FidoRelay.Tray;
 
 /// <summary>
 /// Draws the tray glyph at runtime rather than shipping .ico assets, so the icon can encode live
-/// data: the fill colour is the activity state and the surrounding arc is session quota used.
+/// data: the 8-bit dog is the activity state and the surrounding arc is session quota used.
 /// This is the tray-side analogue of the ESP32 display.
 /// </summary>
 internal static class TrayIconRenderer
@@ -15,10 +15,9 @@ internal static class TrayIconRenderer
     // Tray icons are requested at the small-icon size; 32px covers the common 150%/200% DPI scales.
     private const int Size = 32;
 
-    private static readonly Color IdleColor = Color.FromArgb(0x4C, 0x8B, 0xF5);
-    private static readonly Color WorkingColor = Color.FromArgb(0x3F, 0xB9, 0x50);
-    private static readonly Color WaitingColor = Color.FromArgb(0xF5, 0xA6, 0x23);
-    private static readonly Color UnknownColor = Color.FromArgb(0x8A, 0x8A, 0x8A);
+    /// <summary>Top-left of the 20px dog on the 32px canvas — centred, leaving room for the ring.</summary>
+    private const int DogOrigin = (Size - DogSprites.Size) / 2;
+
     private static readonly Color TrackColor = Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF);
     private static readonly Color QuotaColor = Color.FromArgb(0xE0, 0xFF, 0xFF, 0xFF);
     private static readonly Color QuotaHighColor = Color.FromArgb(0xF0, 0xE5, 0x48, 0x48);
@@ -33,40 +32,57 @@ internal static class TrayIconRenderer
     /// Renders an icon for the given state. The caller owns the returned <see cref="Icon"/> and must
     /// pass it to <see cref="Release"/> once the tray has stopped using it.
     /// </summary>
-    public static Icon Render(ActivityState activity, double? sessionUsedPercentage)
+    public static Icon Render(DogState dog, double? sessionUsedPercentage)
     {
         using var bitmap = new Bitmap(Size, Size);
         using (var graphics = Graphics.FromImage(bitmap))
         {
-            graphics.SmoothingMode = SmoothingMode.AntiAlias;
             graphics.Clear(Color.Transparent);
 
-            var fill = activity switch
-            {
-                ActivityState.Working => WorkingColor,
-                ActivityState.Waiting => WaitingColor,
-                ActivityState.Idle => IdleColor,
-                _ => UnknownColor,
-            };
-
-            var body = new Rectangle(6, 6, Size - 13, Size - 13);
-            using (var brush = new SolidBrush(fill))
-            {
-                graphics.FillEllipse(brush, body);
-            }
-
+            // The ring first: it is antialiased and the dog is not, so drawing the sprite last
+            // keeps its edges hard even where the two meet.
             DrawQuotaArc(graphics, sessionUsedPercentage);
         }
 
+        DrawDog(bitmap, dog);
+
         return CloneFromBitmap(bitmap);
+    }
+
+    /// <summary>
+    /// Blits the sprite a pixel at a time. SetPixel rather than a scaled DrawImage precisely
+    /// because there is no interpolation to get wrong — pixel art survives only at 1:1.
+    /// </summary>
+    private static void DrawDog(Bitmap bitmap, DogState dog)
+    {
+        var sprite = DogSprites.For(dog);
+
+        for (var y = 0; y < DogSprites.Size; y++)
+        {
+            var row = sprite[y];
+            for (var x = 0; x < DogSprites.Size; x++)
+            {
+                var index = DogSprites.IndexOf(row[x]);
+                if (index == 0)
+                {
+                    continue;
+                }
+
+                bitmap.SetPixel(DogOrigin + x, DogOrigin + y, DogSprites.Palette[index]);
+            }
+        }
     }
 
     /// <summary>An arc around the glyph showing how much of the five-hour window is spent.</summary>
     private static void DrawQuotaArc(Graphics graphics, double? sessionUsedPercentage)
     {
-        var ring = new Rectangle(2, 2, Size - 5, Size - 5);
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-        using (var trackPen = new Pen(TrackColor, 3f))
+        // Sits just outside the dog's corners. Widening the ring or growing the sprite from here
+        // makes the two overlap, and the ring then clips the ears and the accent block.
+        var ring = new Rectangle(1, 1, Size - 3, Size - 3);
+
+        using (var trackPen = new Pen(TrackColor, 2.5f))
         {
             graphics.DrawEllipse(trackPen, ring);
         }
@@ -82,7 +98,7 @@ internal static class TrayIconRenderer
             return;
         }
 
-        using var pen = new Pen(used >= 80 ? QuotaHighColor : QuotaColor, 3f)
+        using var pen = new Pen(used >= 80 ? QuotaHighColor : QuotaColor, 2.5f)
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round,

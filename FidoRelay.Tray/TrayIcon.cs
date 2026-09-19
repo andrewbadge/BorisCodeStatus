@@ -21,8 +21,16 @@ internal sealed class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _weekItem;
     private readonly ToolStripMenuItem _activityItem;
 
+    /// <summary>
+    /// Drives the dog to sleep after a quiet spell. Nothing writes to the state file while a
+    /// session is idle, so without a clock of its own the icon would sit awake indefinitely.
+    /// Half a minute is well under <see cref="DogStates.SleepAfter"/> and costs nothing: the
+    /// redraw is skipped unless the pose or the quota bucket actually changed.
+    /// </summary>
+    private readonly System.Windows.Forms.Timer _poseTimer;
+
     private Icon? _currentIcon;
-    private ActivityState _renderedActivity = (ActivityState)(-1);
+    private DogState _renderedDog = (DogState)(-1);
     private int _renderedQuotaBucket = -1;
     private bool _disposed;
 
@@ -59,6 +67,10 @@ internal sealed class TrayIcon : IDisposable
         _notifyIcon.DoubleClick += (_, _) => OpenDashboard();
 
         Refresh(_store.Current);
+
+        _poseTimer = new System.Windows.Forms.Timer { Interval = 30_000 };
+        _poseTimer.Tick += (_, _) => Refresh(_store.Current);
+        _poseTimer.Start();
 
         _store.Changed += OnStateChanged;
         _store.StartWatching();
@@ -126,17 +138,18 @@ internal sealed class TrayIcon : IDisposable
         // Redraw only on a visible change: the arc moves in 5% steps, so this is a handful of
         // renders per session rather than one per hook event.
         var bucket = state.Session?.UsedPercentage is { } used ? (int)(Math.Clamp(used, 0, 100) / 5) : -1;
-        if (state.Activity == _renderedActivity && bucket == _renderedQuotaBucket && _currentIcon is not null)
+        var dog = DogStates.For(state, DateTimeOffset.UtcNow);
+        if (dog == _renderedDog && bucket == _renderedQuotaBucket && _currentIcon is not null)
         {
             return;
         }
 
-        var replacement = TrayIconRenderer.Render(state.Activity, state.Session?.UsedPercentage);
+        var replacement = TrayIconRenderer.Render(dog, state.Session?.UsedPercentage);
         var previous = _currentIcon;
 
         _notifyIcon.Icon = replacement;
         _currentIcon = replacement;
-        _renderedActivity = state.Activity;
+        _renderedDog = dog;
         _renderedQuotaBucket = bucket;
 
         // Only release the old icon after the tray has taken the new one.
@@ -337,6 +350,8 @@ internal sealed class TrayIcon : IDisposable
 
         _disposed = true;
         _store.Changed -= OnStateChanged;
+        _poseTimer.Stop();
+        _poseTimer.Dispose();
 
         // Hide before disposing, or the icon lingers in the tray until the user hovers over it.
         _notifyIcon.Visible = false;

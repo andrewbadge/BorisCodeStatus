@@ -108,7 +108,7 @@ API call.
 | Project | Target | Role |
 |---|---|---|
 | `FidoRelay.Core` | `net10.0` | Models, state store, settings merger, usage API client |
-| `FidoRelay.Core.Tests` | `net10.0` | 65 unit tests over parsing, state, merging, throttling, rename migration |
+| `FidoRelay.Core.Tests` | `net10.0` | 75 unit tests over parsing, state, merging, throttling, rename migration, dog poses |
 | `FidoRelay.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
 | `FidoRelay.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
 | `FidoRelay.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
@@ -301,10 +301,34 @@ restart Claude Code before investigating further.
 
 ## Tray icon
 
-Drawn at runtime rather than shipped as `.ico` assets, so it encodes live data:
+An 8-bit dog — Fido — inside a quota ring. Drawn at runtime rather than shipped as `.ico` assets,
+so it encodes live data:
 
-- **fill colour** — grey `Unknown`, blue `Idle`, green `Working`, amber `Waiting`
-- **surrounding arc** — five-hour session quota used, turning red past 80%
+| Pose | When | Accent |
+|---|---|---|
+| **Running**, tongue out | `activity` is `Working` | orange `#D97757` |
+| **Sitting**, alert | `activity` is `Idle` | green `#6FA96A` |
+| **Ears up** | `activity` is `Waiting` — a permission prompt | amber `#E8B04B` |
+| **Curled up**, eyes closed | Idle for 5 minutes, or no/ended session | slate `#7A8AA3` |
+
+The **surrounding ring** is the five-hour session quota used, turning red past 80%.
+
+The sprites live in `DogSprites.cs` as palette-index grids, one character per pixel, transcribed
+from the design's 20px sheets. Kept as data in source rather than as image files so there are no
+binaries in the repo and the glyph stays diffable. 20px is the largest sprite that clears the ring
+on a 32px canvas; grow either and the ring clips the ears and the accent block. Pixels are blitted
+1:1 with `SetPixel` — any scaling or interpolation destroys pixel art.
+
+**The dog sleeps after 5 minutes (`DogStates.SleepAfter`), but `session_status` does not report
+`Inactive` until 15.** These are deliberately different clocks: the icon is ambient and can settle
+after a quiet spell, while the API field is what the panel keys off and should not claim a session
+is over while you are only reading a reply. A 30-second tray timer exists purely so the dog can
+fall asleep — nothing writes to the state file while a session is idle, so without a clock of its
+own the icon would sit awake indefinitely. It re-renders only when the pose or the quota bucket
+actually changes.
+
+The pose rule lives in `FidoRelay.Core` (`DogStates.For`) rather than in the tray, so the ESP32
+display can derive the same pose from the same state instead of inventing its own mapping.
 
 Right-click menu: current session and week figures (display-only), **Open dashboard** (opens
 `/status` in the browser), **Re-register hooks**, **Exit**. Double-click opens the dashboard.
