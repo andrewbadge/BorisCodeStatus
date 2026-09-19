@@ -42,6 +42,12 @@ internal static class Program
                 return 0;
             }
 
+            if (VitalsUpdates.SessionLifetimeForVerb(verb) is { } ended)
+            {
+                HandleSessionLifetime(payload, ended);
+                return 0;
+            }
+
             // Unknown verb: say so on stderr (which Claude Code surfaces in debug output only)
             // and still succeed, so a stale registration never blocks a session.
             Console.Error.WriteLine($"ClaudeVitals: unrecognised verb '{verb}'.");
@@ -75,6 +81,12 @@ internal static class Program
     {
         var hook = VitalsUpdates.TryParse<HookEvent>(payload);
         VitalsStateStore.Default.Update(current => VitalsUpdates.ApplyActivity(current, activity, hook));
+    }
+
+    private static void HandleSessionLifetime(string payload, bool ended)
+    {
+        var hook = VitalsUpdates.TryParse<HookEvent>(payload);
+        VitalsStateStore.Default.Update(current => VitalsUpdates.ApplySessionLifetime(current, ended, hook));
     }
 
     private static string Render(VitalsState state)

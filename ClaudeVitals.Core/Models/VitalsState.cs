@@ -8,6 +8,14 @@ namespace ClaudeVitals.Core.Models;
 /// </summary>
 public sealed record VitalsState
 {
+    /// <summary>
+    /// How long a session may go without any event before it is reported as
+    /// <see cref="Models.SessionStatus.Inactive"/>. Generous on purpose: a gap while the user
+    /// reads a long reply or steps away is still an open session, and flapping between Active
+    /// and Inactive on the display would be worse than reacting slowly.
+    /// </summary>
+    public static readonly TimeSpan SessionIdleTimeout = TimeSpan.FromMinutes(15);
+
     /// <summary>Five-hour session quota. Null until a statusLine event has been seen.</summary>
     [JsonPropertyName("session")]
     public RateLimitWindow? Session { get; init; }
@@ -56,6 +64,47 @@ public sealed record VitalsState
     /// <summary>When <see cref="Activity"/> last changed — lets the display time out a stale "working".</summary>
     [JsonPropertyName("activity_changed_utc")]
     public DateTimeOffset? ActivityChangedUtc { get; init; }
+
+    /// <summary>
+    /// When a Claude Code session event (statusLine or a lifecycle hook) was last seen.
+    /// Distinct from <see cref="LastUpdatedUtc"/>, which also moves for background writes such
+    /// as the usage-API refresh — those say nothing about whether a session is open.
+    /// </summary>
+    [JsonPropertyName("last_event_utc")]
+    public DateTimeOffset? LastEventUtc { get; init; }
+
+    /// <summary>When the SessionEnd hook last fired. Persisted so the status survives a restart.</summary>
+    [JsonPropertyName("session_ended_utc")]
+    public DateTimeOffset? SessionEndedUtc { get; init; }
+
+    /// <summary>
+    /// Whether a session is open, computed on read rather than stored: a session going quiet
+    /// writes nothing to the state file, so a stored value would sit at "Active" forever.
+    /// Same reason <see cref="AgeSeconds"/> is computed.
+    /// </summary>
+    [JsonPropertyName("session_status")]
+    [JsonConverter(typeof(JsonStringEnumConverter<SessionStatus>))]
+    public SessionStatus SessionStatus
+    {
+        get
+        {
+            if (LastEventUtc is not { } lastEvent)
+            {
+                return SessionStatus.Unknown;
+            }
+
+            // SessionEnd stamps both timestamps with the same instant, so ">=" is what lets an
+            // end win over the event that carried it; any later event moves LastEventUtc past it.
+            if (SessionEndedUtc is { } ended && ended >= lastEvent)
+            {
+                return SessionStatus.Ended;
+            }
+
+            return DateTimeOffset.UtcNow - lastEvent > SessionIdleTimeout
+                ? SessionStatus.Inactive
+                : SessionStatus.Active;
+        }
+    }
 
     /// <summary>When any field was last written.</summary>
     [JsonPropertyName("last_updated_utc")]

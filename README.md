@@ -51,6 +51,35 @@ statusLine carries no lifecycle signal, so the tray animation state comes from s
 
 All four invoke the same executable; the verb argument distinguishes them.
 
+### 2b. Session hooks — is a session open at all (`session_status`)
+
+`activity` answers a narrower question than it looks like it does. `Stop` fires the moment a turn
+finishes, so a session you are actively chatting in reports `Idle` for most of its wall-clock
+life — all the time spent reading a reply and typing the next prompt. A display that wants
+"a session is open" rather than "Claude is generating right now" needs a second signal.
+
+| Hook | Verb argument | Effect |
+|---|---|---|
+| `SessionStart` | `sessionstart` | `session_status` → `Active`, clears any previous end |
+| `SessionEnd` | `sessionend` | `session_status` → `Ended` |
+
+These deliberately leave `activity` untouched — the two signals are independent.
+
+`session_status` is **computed per request**, not stored, because a session going quiet writes
+nothing to the state file and a stored value would sit at `Active` forever:
+
+| Value | Meaning |
+|---|---|
+| `Unknown` | No session event seen yet in this install |
+| `Active` | An event arrived within the last 15 minutes and no `SessionEnd` followed it |
+| `Inactive` | No event for over 15 minutes — inferred, this is what a session killed without firing `SessionEnd` decays into |
+| `Ended` | `SessionEnd` fired; the session closed cleanly |
+
+Any session event refreshes it — statusLine and all four lifecycle hooks, not just the session
+hooks — so `Active` holds through a normal conversation. The 15-minute timeout
+(`VitalsState.SessionIdleTimeout`) is deliberately generous: flapping between `Active` and
+`Inactive` while the user reads a long reply would be worse than reacting slowly.
+
 ### 3. `/api/oauth/usage` — fallback only
 
 An **undocumented** Anthropic endpoint, used only for the one figure hooks cannot supply: the
@@ -115,14 +144,22 @@ Bound to `0.0.0.0` so the ESP32 can reach it across the LAN. Port is overridable
   "month_cost_usd": null,
   "activity": "Working",
   "activity_changed_utc": "2026-09-13T08:03:43+00:00",
+  "session_status": "Active",
+  "last_event_utc": "2026-09-13T08:03:43+00:00",
+  "session_ended_utc": null,
   "last_updated_utc": "2026-09-13T08:03:43+00:00",
   "usage_api_last_success_utc": null,
   "age_seconds": 0
 }
 ```
 
-`resets_in_minutes` and `age_seconds` are computed per request, so the firmware does not need a
-clock or timezone handling. `age_seconds` lets the display grey out stale data.
+`resets_in_minutes`, `age_seconds` and `session_status` are computed per request, so the firmware
+does not need a clock or timezone handling. `age_seconds` lets the display grey out stale data.
+
+`activity` is "what Claude is doing this turn"; `session_status` is "is a session open" — see
+[Session hooks](#2b-session-hooks--is-a-session-open-at-all-session_status). `last_event_utc`
+differs from `last_updated_utc`, which also moves for background writes such as the usage-API
+refresh; only `last_event_utc` tracks actual session events.
 
 ### ⚠️ Security: the endpoint is unauthenticated
 
@@ -249,7 +286,9 @@ Registered entries:
     "Notification":     [{ "hooks": [{ "type": "command", "command": "\"...\" notification" }] }],
     "Stop":             [{ "hooks": [{ "type": "command", "command": "\"...\" stop" }] }],
     "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"...\" userpromptsubmit" }] }],
-    "PreToolUse":       [{ "matcher": "*", "hooks": [{ "type": "command", "command": "\"...\" pretooluse" }] }]
+    "PreToolUse":       [{ "matcher": "*", "hooks": [{ "type": "command", "command": "\"...\" pretooluse" }] }],
+    "SessionStart":     [{ "hooks": [{ "type": "command", "command": "\"...\" sessionstart" }] }],
+    "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "\"...\" sessionend" }] }]
   }
 }
 ```
@@ -363,6 +402,9 @@ echo '{"model":{"display_name":"Opus 5"},"rate_limits":{"five_hour":{"used_perce
   | ClaudeVitals.Hooks.exe statusline
 
 echo '{"hook_event_name":"Notification"}' | ClaudeVitals.Hooks.exe notification
+
+echo '{"hook_event_name":"SessionStart"}' | ClaudeVitals.Hooks.exe sessionstart
+echo '{"hook_event_name":"SessionEnd"}'   | ClaudeVitals.Hooks.exe sessionend
 ```
 
 Then check `%LOCALAPPDATA%\ClaudeVitals\state.json`, or `curl http://localhost:5080/status` with the

@@ -53,6 +53,7 @@ public static class VitalsUpdates
             SessionName = Coalesce(status.SessionName, current.SessionName),
             SessionCostUsd = status.Cost?.TotalCostUsd ?? current.SessionCostUsd,
             SessionDurationMs = status.Cost?.TotalDurationMs ?? current.SessionDurationMs,
+            LastEventUtc = DateTimeOffset.UtcNow,
         };
     }
 
@@ -65,13 +66,38 @@ public static class VitalsUpdates
     {
         ArgumentNullException.ThrowIfNull(current);
 
+        var now = DateTimeOffset.UtcNow;
+
         return current with
         {
             Activity = activity,
             ActivityChangedUtc = current.Activity == activity
-                ? current.ActivityChangedUtc ?? DateTimeOffset.UtcNow
-                : DateTimeOffset.UtcNow,
+                ? current.ActivityChangedUtc ?? now
+                : now,
             SessionId = Coalesce(hook?.SessionId, current.SessionId),
+            LastEventUtc = now,
+        };
+    }
+
+    /// <summary>
+    /// Folds a SessionStart or SessionEnd hook into the state. Deliberately leaves
+    /// <see cref="VitalsState.Activity"/> alone: session lifetime and turn activity are separate
+    /// signals, and a session opening says nothing about whether Claude is generating.
+    /// </summary>
+    public static VitalsState ApplySessionLifetime(VitalsState current, bool ended, HookEvent? hook = null)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+
+        // One instant for both stamps: SessionStatus compares them, and two UtcNow reads would
+        // make an end that lands a tick earlier than its own event lose the comparison.
+        var now = DateTimeOffset.UtcNow;
+
+        return current with
+        {
+            SessionId = Coalesce(hook?.SessionId, current.SessionId),
+            LastEventUtc = now,
+            // A start clears any previous end, so a new session is not reported as Ended.
+            SessionEndedUtc = ended ? now : null,
         };
     }
 
@@ -81,6 +107,17 @@ public static class VitalsUpdates
         "notification" => ActivityState.Waiting,
         "stop" => ActivityState.Idle,
         "pretooluse" or "userpromptsubmit" or "working" => ActivityState.Working,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Maps a verb to a session-lifetime change: true for an end, false for a start,
+    /// null when the verb is not a session-lifetime hook at all.
+    /// </summary>
+    public static bool? SessionLifetimeForVerb(string? verb) => verb?.Trim().ToLowerInvariant() switch
+    {
+        "sessionstart" => false,
+        "sessionend" => true,
         _ => null,
     };
 

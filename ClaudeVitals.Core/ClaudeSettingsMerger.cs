@@ -29,6 +29,8 @@ public static class ClaudeSettingsMerger
         ("Stop", "stop", null),
         ("UserPromptSubmit", "userpromptsubmit", null),
         ("PreToolUse", "pretooluse", "*"),
+        ("SessionStart", "sessionstart", null),
+        ("SessionEnd", "sessionend", null),
     ];
 
     /// <summary>
