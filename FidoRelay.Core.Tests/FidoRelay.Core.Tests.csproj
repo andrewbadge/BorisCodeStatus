@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\FidoRelay.Api\FidoRelay.Api.csproj" />
     <ProjectReference Include="..\FidoRelay.Core\FidoRelay.Core.csproj" />
   </ItemGroup>
 

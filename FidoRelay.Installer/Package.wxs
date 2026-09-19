@@ -25,6 +25,11 @@
 
     <MediaTemplate EmbedCab="yes" />
 
+    <!-- The dog in Installed Apps. The Start Menu shortcut needs no Icon attribute: it inherits
+         the icon compiled into the target executable. -->
+    <Icon Id="FidoIcon" SourceFile="..\FidoRelay.Tray\fido.ico" />
+    <Property Id="ARPPRODUCTICON" Value="FidoIcon" />
+
     <!-- %LOCALAPPDATA%\Programs\FidoRelay -->
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="ProgramsFolder" Name="Programs">

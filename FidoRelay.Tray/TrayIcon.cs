@@ -41,6 +41,7 @@ internal sealed class TrayIcon : IDisposable
     private Icon? _currentIcon;
     private DogState _renderedDog = (DogState)(-1);
     private int _renderedQuotaBucket = -1;
+    private bool _pausePersisted = true;
     private bool _disposed;
 
     public TrayIcon(VitalsStateStore store, int port, VitalsApiHost api)
@@ -254,29 +255,77 @@ internal sealed class TrayIcon : IDisposable
     /// </summary>
     private void TogglePaused()
     {
-        if (_api.IsListening)
-        {
-            _api.Stop();
-            ShowBalloon(
-                $"HTTP service paused. Port {_port} is closed, so your display will show the relay " +
-                "as down until you resume.",
-                ToolTipIcon.Info);
-        }
-        else
+        var pausing = _api.IsListening;
+
+        // Off the UI thread, and not merely to keep the menu painting: stopping Kestrel takes
+        // long enough to be felt, and the tray must stay responsive throughout. The item is
+        // disabled meanwhile so a second click cannot start a competing transition.
+        _pauseItem.Enabled = false;
+
+        Task.Run(() =>
         {
             try
             {
-                _api.Start();
-                ShowBalloon($"HTTP service resumed on port {_port}.", ToolTipIcon.Info);
+                if (pausing)
+                {
+                    _api.Stop();
+                }
+                else
+                {
+                    _api.Start();
+                }
+
+                // Only recorded once the change has actually taken effect, so a failed resume
+                // cannot leave the preference claiming the service is running.
+                _pausePersisted = PausePreference.TrySet(pausing);
+                return null as string;
             }
             catch (Exception ex) when (ex is IOException or SocketException or InvalidOperationException)
             {
                 // Most likely something else grabbed the port while we were paused.
-                ShowBalloon($"Could not resume on port {_port}: {ex.Message}", ToolTipIcon.Warning);
+                return ex.Message;
             }
-        }
+        })
+        .ContinueWith(
+            task => _uiContext.Post(
+                _ =>
+                {
+                    if (_disposed)
+                    {
+                        return;
+                    }
 
-        Refresh(_store.Current);
+                    _pauseItem.Enabled = true;
+
+                    var failure = task.IsFaulted ? task.Exception?.GetBaseException().Message : task.Result;
+                    if (failure is not null)
+                    {
+                        ShowBalloon(
+                            $"Could not {(pausing ? "pause" : "resume")} the HTTP service: {failure}",
+                            ToolTipIcon.Warning);
+                    }
+                    else if (pausing)
+                    {
+                        // Say when the pause will not survive a restart, rather than let someone
+                        // discover it by finding the endpoint back up after a reboot.
+                        var persistence = _pausePersisted
+                            ? " It will stay paused until you resume, including after a restart."
+                            : " Note: the setting could not be saved, so it will resume on restart.";
+
+                        ShowBalloon(
+                            $"HTTP service paused. Port {_port} is closed, so your display will show " +
+                            "the relay as down." + persistence,
+                            ToolTipIcon.Info);
+                    }
+                    else
+                    {
+                        ShowBalloon($"HTTP service resumed on port {_port}.", ToolTipIcon.Info);
+                    }
+
+                    Refresh(_store.Current);
+                },
+                null),
+            TaskScheduler.Default);
     }
 
     private void OpenDashboard() => OpenUrl($"http://localhost:{_port}/status");
