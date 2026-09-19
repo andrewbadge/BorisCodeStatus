@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
+using System.Net.Sockets;
 using System.Reflection;
+using FidoRelay.Api;
 using FidoRelay.Core;
 using FidoRelay.Core.Models;
 using FidoRelay.Core.State;
@@ -19,6 +21,8 @@ internal sealed class TrayIcon : IDisposable
 
     private readonly NotifyIcon _notifyIcon;
     private readonly VitalsStateStore _store;
+    private readonly VitalsApiHost _api;
+    private readonly ToolStripMenuItem _pauseItem;
     private readonly int _port;
     private readonly SynchronizationContext _uiContext;
 
@@ -39,10 +43,11 @@ internal sealed class TrayIcon : IDisposable
     private int _renderedQuotaBucket = -1;
     private bool _disposed;
 
-    public TrayIcon(VitalsStateStore store, int port)
+    public TrayIcon(VitalsStateStore store, int port, VitalsApiHost api)
     {
         _store = store;
         _port = port;
+        _api = api;
 
         // Captured on the UI thread so state changes (raised on thread-pool threads by the
         // file watcher) can be marshalled back before touching NotifyIcon.
@@ -52,10 +57,19 @@ internal sealed class TrayIcon : IDisposable
         _weekItem = new ToolStripMenuItem("Week: —") { Enabled = false };
         _activityItem = new ToolStripMenuItem("Status: —") { Enabled = false };
 
+        // Checked-state toggle rather than a label that flips between Pause and Resume: the tick
+        // says what is true now, where a verb only says what the click will do.
+        _pauseItem = new ToolStripMenuItem("Pause HTTP service", null, (_, _) => TogglePaused())
+        {
+            CheckOnClick = false,
+        };
+
         // Everything actionable sits under Advanced: the top level is then purely the current
         // figures, which is what someone opening the menu is almost always here to read.
         // Double-clicking the icon still opens the browser, so the common action keeps a shortcut.
         var advanced = new ToolStripMenuItem("Advanced");
+        advanced.DropDownItems.Add(_pauseItem);
+        advanced.DropDownItems.Add(new ToolStripSeparator());
         advanced.DropDownItems.Add(new ToolStripMenuItem("Open in Browser", null, (_, _) => OpenDashboard()));
         advanced.DropDownItems.Add(new ToolStripMenuItem("Re-register hooks", null, (_, _) => ReRegisterHooks()));
         advanced.DropDownItems.Add(new ToolStripMenuItem("Fix firewall access...", null, (_, _) => FixFirewallAccess()));
@@ -146,10 +160,15 @@ internal sealed class TrayIcon : IDisposable
             return;
         }
 
-        _activityItem.Text = $"Status: {Describe(state)}";
+        var paused = !_api.IsListening;
+
+        // A pause is invisible from the outside — the tray icon looks identical and the display
+        // just goes dark — so say so everywhere the user might look.
+        _activityItem.Text = paused ? "Status: HTTP paused" : $"Status: {Describe(state)}";
         _sessionItem.Text = $"Session (5h): {FormatWindow(state.Session)}";
         _weekItem.Text = $"Week (7d): {FormatWindow(state.Week)}";
-        _notifyIcon.Text = BuildTooltip(state);
+        _notifyIcon.Text = paused ? "FidoRelay — HTTP paused" : BuildTooltip(state);
+        _pauseItem.Checked = paused;
 
         UpdateIcon(state);
     }
@@ -222,6 +241,42 @@ internal sealed class TrayIcon : IDisposable
         // The tray tooltip is hard-capped at 63 characters; longer text is silently dropped.
         var text = string.Join("  ", lines);
         return text.Length <= 63 ? text : text[..63];
+    }
+
+    /// <summary>
+    /// Stops or restarts the listener, leaving the tray and the hooks running. Paused means the
+    /// port is released, so the display gets a refused connection — the case its "relay down"
+    /// handling already covers — rather than an error response it would need to understand.
+    ///
+    /// Deliberately not persisted: a pause lasts until the app restarts. Persisting it would let
+    /// someone pause, forget, reboot weeks later and be left debugging a display that was switched
+    /// off on purpose.
+    /// </summary>
+    private void TogglePaused()
+    {
+        if (_api.IsListening)
+        {
+            _api.Stop();
+            ShowBalloon(
+                $"HTTP service paused. Port {_port} is closed, so your display will show the relay " +
+                "as down until you resume.",
+                ToolTipIcon.Info);
+        }
+        else
+        {
+            try
+            {
+                _api.Start();
+                ShowBalloon($"HTTP service resumed on port {_port}.", ToolTipIcon.Info);
+            }
+            catch (Exception ex) when (ex is IOException or SocketException or InvalidOperationException)
+            {
+                // Most likely something else grabbed the port while we were paused.
+                ShowBalloon($"Could not resume on port {_port}: {ex.Message}", ToolTipIcon.Warning);
+            }
+        }
+
+        Refresh(_store.Current);
     }
 
     private void OpenDashboard() => OpenUrl($"http://localhost:{_port}/status");

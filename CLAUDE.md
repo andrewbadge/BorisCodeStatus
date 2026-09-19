@@ -48,8 +48,10 @@ Claude Code ──stdin JSON──▶ FidoRelay.Hooks.exe ──writes──▶ 
   `ClaudeSettingsMerger`.
 - **Hooks** — one `Exe` for every hook; the verb argument (`statusline`, `stop`, `sessionstart`, …)
   selects the behaviour. Registered in `ClaudeSettingsMerger.LifecycleHooks`.
-- **Api** — a *library*, not an executable. Builds the `WebApplication`; the tray hosts it
-  in-process so there is only one process to install and supervise.
+- **Api** — a *library*, not an executable. `VitalsApi` builds the `WebApplication`;
+  `VitalsApiHost` owns its lifetime so the tray can pause and resume the listener. A stopped
+  `WebApplication` cannot be restarted, so resuming builds a new one — that is why the host holds
+  the options and store rather than the app.
 - **Tray** — WinForms host: owns the message loop, starts the API, draws the icon from live data,
   and registers hooks on every launch (idempotent, so it repairs a stale path after an upgrade).
 
