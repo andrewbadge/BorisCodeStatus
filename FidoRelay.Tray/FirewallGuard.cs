@@ -56,7 +56,13 @@ internal static class FirewallGuard
 
     // NET_FW_ACTION / NET_FW_RULE_DIRECTION.
     private const int ActionAllow = 1;
+
+    /// <summary>IANA protocol number for TCP, as the firewall COM API reports it.</summary>
+    private const int ProtocolTcp = 6;
     private const int DirectionInbound = 1;
+
+    /// <summary>Matches VitalsApiOptions.Port; only used when a caller does not supply one.</summary>
+    private const int DefaultPort = 5080;
 
     private const string RuleDisplayName = "FidoRelay";
 
@@ -74,7 +80,7 @@ internal static class FirewallGuard
     /// the Windows prompt appears, rather than meeting an unexplained dialog and dismissing it.
     /// That dismissal is exactly the failure this is trying to prevent.
     /// </summary>
-    public static void ShowFirstRunNoticeIfNeeded()
+    public static void ShowFirstRunNoticeIfNeeded(int port = DefaultPort)
     {
         try
         {
@@ -84,7 +90,7 @@ internal static class FirewallGuard
             }
 
             // Nothing to warn about if the rule is already in place (for example on a reinstall).
-            if (Detect().State == FirewallState.Allowed)
+            if (Detect(port).State == FirewallState.Allowed)
             {
                 MarkNoticeShown();
                 return;
@@ -130,7 +136,8 @@ internal static class FirewallGuard
     /// profile. Requires no elevation. Returns <see cref="FirewallState.Unknown"/> on any failure,
     /// because a wrong "you are blocked" warning is worse than staying quiet.
     /// </summary>
-    public static FirewallVerdict Detect()
+    /// <param name="port">The TCP port the relay listens on, so port-only rules can be recognised.</param>
+    public static FirewallVerdict Detect(int port = DefaultPort)
     {
         try
         {
@@ -160,7 +167,7 @@ internal static class FirewallGuard
 
             foreach (var rule in enumerable)
             {
-                if (!RuleApplies(rule, exePath, activeProfiles, out var action))
+                if (!RuleApplies(rule, exePath, port, activeProfiles, out var action))
                 {
                     continue;
                 }
@@ -186,16 +193,35 @@ internal static class FirewallGuard
         }
     }
 
-    /// <summary>Matches one COM rule against this exe, inbound, enabled, on an active profile.</summary>
-    private static bool RuleApplies(object rule, string exePath, int activeProfiles, out int action)
+    /// <summary>
+    /// Matches one COM rule against this relay: inbound, enabled, on an active profile, and
+    /// either naming this executable or opening our TCP port for everything.
+    ///
+    /// Both forms have to count. A rule created by approving Windows' own prompt names the
+    /// executable, but a rule added with <c>New-NetFirewallRule -LocalPort 5080</c> and no
+    /// <c>-Program</c> names no application at all — and that is a perfectly ordinary way to open
+    /// a port. Recognising only the first form makes the tray report "no rule" while traffic is
+    /// in fact allowed, and then send the user to a fix that needs administrator rights for
+    /// nothing.
+    /// </summary>
+    private static bool RuleApplies(object rule, string exePath, int port, int activeProfiles, out int action)
     {
         action = ActionAllow;
 
         try
         {
             var applicationName = Get(rule, "ApplicationName") as string;
-            if (string.IsNullOrWhiteSpace(applicationName) ||
-                !string.Equals(applicationName, exePath, StringComparison.OrdinalIgnoreCase))
+
+            var matchesThisApp = !string.IsNullOrWhiteSpace(applicationName) &&
+                string.Equals(applicationName, exePath, StringComparison.OrdinalIgnoreCase);
+
+            // Only treat an application-less rule as ours if it actually covers our TCP port.
+            // A rule for some other application tells us nothing about this one.
+            var matchesOurPort = string.IsNullOrWhiteSpace(applicationName) &&
+                (int)Get(rule, "Protocol")! == ProtocolTcp &&
+                PortsInclude(Get(rule, "LocalPorts") as string, port);
+
+            if (!matchesThisApp && !matchesOurPort)
             {
                 return false;
             }
@@ -224,6 +250,46 @@ internal static class FirewallGuard
             // Individual rules can throw on malformed entries; skip them rather than abort the scan.
             return false;
         }
+    }
+
+    /// <summary>
+    /// Whether a rule's LocalPorts covers <paramref name="port"/>. The COM value is free-form:
+    /// "*" for any, a single port, a comma-separated list, or ranges such as "5000-6000".
+    /// Anything unparseable is treated as not covering the port — a missed rule costs a needless
+    /// warning, while a wrongly assumed one would tell the user they are reachable when they are
+    /// not, and the display would just never update.
+    /// </summary>
+    private static bool PortsInclude(string? localPorts, int port)
+    {
+        if (string.IsNullOrWhiteSpace(localPorts))
+        {
+            return false;
+        }
+
+        if (localPorts.Trim() == "*")
+        {
+            return true;
+        }
+
+        foreach (var part in localPorts.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var range = part.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            if (range.Length == 1 && int.TryParse(range[0], out var single) && single == port)
+            {
+                return true;
+            }
+
+            if (range.Length == 2 &&
+                int.TryParse(range[0], out var from) &&
+                int.TryParse(range[1], out var to) &&
+                port >= from && port <= to)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static object? Get(object target, string property) =>

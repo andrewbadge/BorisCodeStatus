@@ -202,6 +202,20 @@ requires administrator rights. If a non-admin user dismisses or cancels it — w
 do — Windows does not simply skip the rule: it **creates `Block` rules** for that executable.
 `/status` then still works from `localhost`, but the ESP32 is refused.
 
+**Upgrading does not cost you this again.** Firewall rules key on the executable's *path*, not its
+contents, so replacing the binary in place leaves them matching; `ShowFirstRunNoticeIfNeeded` and
+the warning balloon both stop early once `Detect()` returns `Allowed`. A prompt only reappears if
+the path itself changes — as it did in the rename from ClaudeVitals, which is why that upgrade
+asked once and no later one has.
+
+`Detect()` recognises **both shapes of rule**: one naming this executable, as approving Windows'
+own prompt creates, and one naming no application but opening our TCP port, as
+`New-NetFirewallRule -LocalPort 5080` creates. Both genuinely allow the traffic, and treating the
+second as "no rule" would send the user to a fix needing administrator rights for nothing. The
+port is matched against every shape the COM API reports — `*`, a single port, a comma-separated
+list, and ranges — and anything unparseable counts as *not* covering the port, so a missed rule
+costs a needless warning rather than a false assurance of reachability.
+
 Two things make this harder to diagnose than it looks:
 
 - **Block beats Allow.** Windows Firewall evaluates `Block` rules before `Allow` rules, so adding

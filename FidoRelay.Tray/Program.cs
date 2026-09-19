@@ -42,7 +42,7 @@ internal static class Program
         // entirely when starting paused, since nothing is about to bind.
         if (!startPaused)
         {
-            FirewallGuard.ShowFirstRunNoticeIfNeeded();
+            FirewallGuard.ShowFirstRunNoticeIfNeeded(options.Port);
         }
 
         using var api = new VitalsApiHost(options, store);
