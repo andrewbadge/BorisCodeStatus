@@ -47,14 +47,20 @@ internal sealed class TrayIcon : IDisposable
         _weekItem = new ToolStripMenuItem("Week: —") { Enabled = false };
         _activityItem = new ToolStripMenuItem("Status: —") { Enabled = false };
 
+        // Everything actionable sits under Advanced: the top level is then purely the current
+        // figures, which is what someone opening the menu is almost always here to read.
+        // Double-clicking the icon still opens the browser, so the common action keeps a shortcut.
+        var advanced = new ToolStripMenuItem("Advanced");
+        advanced.DropDownItems.Add(new ToolStripMenuItem("Open in Browser", null, (_, _) => OpenDashboard()));
+        advanced.DropDownItems.Add(new ToolStripMenuItem("Re-register hooks", null, (_, _) => ReRegisterHooks()));
+        advanced.DropDownItems.Add(new ToolStripMenuItem("Fix firewall access...", null, (_, _) => FixFirewallAccess()));
+
         var menu = new ContextMenuStrip();
         menu.Items.Add(_activityItem);
         menu.Items.Add(_sessionItem);
         menu.Items.Add(_weekItem);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(new ToolStripMenuItem("Open dashboard", null, (_, _) => OpenDashboard()));
-        menu.Items.Add(new ToolStripMenuItem("Re-register hooks", null, (_, _) => ReRegisterHooks()));
-        menu.Items.Add(new ToolStripMenuItem("Fix firewall access...", null, (_, _) => FixFirewallAccess()));
+        menu.Items.Add(advanced);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Exit", null, (_, _) => Application.Exit()));
 

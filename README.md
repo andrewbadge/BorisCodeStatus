@@ -330,8 +330,10 @@ actually changes.
 The pose rule lives in `FidoRelay.Core` (`DogStates.For`) rather than in the tray, so the ESP32
 display can derive the same pose from the same state instead of inventing its own mapping.
 
-Right-click menu: current session and week figures (display-only), **Open dashboard** (opens
-`/status` in the browser), **Re-register hooks**, **Exit**. Double-click opens the dashboard.
+Right-click menu: the current session and week figures (display-only), then **Advanced** and
+**Exit**. The actions live under **Advanced** — **Open in Browser** (opens `/status`),
+**Re-register hooks**, **Fix firewall access…** — so the top level is only what you came to read.
+Double-clicking the icon still opens `/status`, keeping a shortcut on the common action.
 
 ---
 
