@@ -108,7 +108,7 @@ API call.
 | Project | Target | Role |
 |---|---|---|
 | `FidoRelay.Core` | `net10.0` | Models, state store, settings merger, usage API client |
-| `FidoRelay.Core.Tests` | `net10.0` | 75 unit tests over parsing, state, merging, throttling, rename migration, dog poses |
+| `FidoRelay.Core.Tests` | `net10.0` | 75 unit tests over parsing, state, merging, throttling, dog poses |
 | `FidoRelay.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
 | `FidoRelay.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
 | `FidoRelay.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
@@ -332,9 +332,32 @@ display can derive the same pose from the same state instead of inventing its ow
 
 Right-click menu: a **FidoRelay v1.2.3** header (the build version, stamped at compile time —
 clicking it opens the GitHub repository), then the current session and week figures
-(display-only), then **Advanced** and **Exit**. The actions live under **Advanced** — **Open in Browser** (opens `/status`),
-**Re-register hooks**, **Fix firewall access…** — so the top level is only what you came to read.
-Double-clicking the icon still opens `/status`, keeping a shortcut on the common action.
+(display-only), then **Advanced** and **Exit**. The actions live under **Advanced** — **Pause HTTP service**, **Open in Browser** (opens
+`/status`), **Re-register hooks**, **Fix firewall access…** — so the top level is only what you
+came to read. Double-clicking the icon still opens `/status`, keeping a shortcut on the common
+action.
+
+### Pausing the HTTP service
+
+**Pause HTTP service** stops the listener while everything else keeps running: the tray stays up,
+the hooks keep recording, and `state.json` keeps being written. Only the endpoint goes away.
+
+It releases the TCP port rather than answering with an error status, so a client gets
+`ConnectionRefused` — the "relay down" case the display already handles — instead of a 503 it
+would have to learn about. Verified on both loopback and the LAN address.
+
+Two consequences worth knowing:
+
+- **Usage-API polling stops too.** `UsageApiRefreshService` is a hosted service inside the same
+  app, so pausing stops it. That is intended: a paused relay should be doing nothing at all.
+- **A pause is not persisted.** It lasts until the app restarts. Persisting it would let someone
+  pause, forget, reboot weeks later and end up debugging a display that was switched off on
+  purpose. The menu item shows a tick while paused, and both the status line and the tray tooltip
+  read **HTTP paused**, because a pause is otherwise invisible from outside.
+
+Resuming builds a fresh listener — a stopped `WebApplication` cannot be restarted, which is why
+`VitalsApiHost` holds the options and store rather than the app. If something else took the port
+while you were paused, resuming fails with a balloon rather than silently staying down.
 
 ---
 
@@ -453,32 +476,6 @@ line is a far worse outcome than a missed update.
 **State writes are atomic and cross-process safe**: serialised by a named mutex, written to a temp
 file and moved into place, so a reader sees either the old file or the new one, never a partial one.
 Reads share every file mode and swallow transient I/O errors.
-
----
-
-## Upgrading from ClaudeVitals
-
-This project was called **ClaudeVitals** before it was renamed to FidoRelay, to pair with the
-[FidoESP32](https://github.com/andrewbadge/FidoESP32) display firmware and to stop the product name
-implying it is an Anthropic product.
-
-The rename changes the install directory, the executables, the state directory, the firewall rule
-and the port environment variable, so an existing install needs carrying over. Three things happen
-automatically on first run of the new version:
-
-| What | Handling |
-|---|---|
-| `%LOCALAPPDATA%\ClaudeVitals\state.json` and the usage-API stamp | Copied into `%LOCALAPPDATA%\FidoRelay` once, never overwriting a newer file. The old directory is left in place and can be deleted by hand. |
-| Hook entries in `~/.claude/settings.json` | Recognised as ours and **repointed**, not duplicated. Without this the old entries would remain, invoking a missing exe on every event — silently, because the hook never reports errors. |
-| A `Claude Vitals Relay` firewall rule | Removed by the firewall fix script, since it names the old install path as its `-Program` and can never match again. |
-
-The MSI keeps its original `UpgradeCode`, so the new package supersedes an installed ClaudeVitals
-rather than installing alongside it. Two things you must do by hand:
-
-- **`CLAUDEVITALS_PORT` is now `FIDORELAY_PORT`.** If you set it, set the new one — the old name is
-  not read as a fallback.
-- **Uninstalling the old version first is not required, but if you do**, it leaves its hook entries
-  behind pointing at a deleted exe (see below); installing FidoRelay afterwards repoints them.
 
 ---
 

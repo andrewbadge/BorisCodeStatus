@@ -37,10 +37,10 @@ internal static class Program
         // which does not skip the rule, it blocks the app. Explain first, then bind.
         FirewallGuard.ShowFirstRunNoticeIfNeeded();
 
-        WebApplication? api = null;
+        using var api = new VitalsApiHost(options, store);
         try
         {
-            api = StartApi(options, store);
+            api.Start();
         }
         catch (Exception ex)
         {
@@ -54,7 +54,7 @@ internal static class Program
                 MessageBoxIcon.Warning);
         }
 
-        using var tray = new TrayIcon(store, options.Port);
+        using var tray = new TrayIcon(store, options.Port, api);
 
         // Registering hooks is done here rather than in an MSI custom action — see README. It runs
         // after the tray is up so a locked or unusual settings.json never delays or fails startup.
@@ -62,35 +62,9 @@ internal static class Program
 
         Application.Run();
 
-        StopApi(api);
-    }
-
-    private static WebApplication StartApi(VitalsApiOptions options, VitalsStateStore store)
-    {
-        var app = VitalsApi.Build(options, store);
-
-        // StartAsync rather than RunAsync: this thread must return to pump the WinForms message loop.
-        app.StartAsync().GetAwaiter().GetResult();
-        return app;
-    }
-
-    private static void StopApi(WebApplication? api)
-    {
-        if (api is null)
-        {
-            return;
-        }
-
-        try
-        {
-            using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            api.StopAsync(shutdown.Token).GetAwaiter().GetResult();
-            api.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
-        {
-            // Shutting down anyway.
-        }
+        // Disposing the host stops the listener; `using` on the declaration above would only run
+        // after this method returns, which is the same thing but less obvious at the call site.
+        api.Dispose();
     }
 
     /// <summary>
