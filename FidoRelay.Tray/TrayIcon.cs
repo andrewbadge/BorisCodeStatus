@@ -141,7 +141,7 @@ internal sealed class TrayIcon : IDisposable
     {
         Task.Run(() =>
         {
-            var verdict = FirewallGuard.Detect();
+            var verdict = FirewallGuard.Detect(_port);
             if (!verdict.BlocksTheDisplay)
             {
                 return;
@@ -483,7 +483,7 @@ internal sealed class TrayIcon : IDisposable
     /// </summary>
     private void FixFirewallAccess()
     {
-        var verdict = FirewallGuard.Detect();
+        var verdict = FirewallGuard.Detect(_port);
 
         if (verdict.State == FirewallState.Allowed)
         {
