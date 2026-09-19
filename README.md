@@ -108,7 +108,7 @@ API call.
 | Project | Target | Role |
 |---|---|---|
 | `FidoRelay.Core` | `net10.0` | Models, state store, settings merger, usage API client |
-| `FidoRelay.Core.Tests` | `net10.0` | 84 unit tests over parsing, state, merging, throttling, dog poses, pause/resume |
+| `FidoRelay.Core.Tests` | `net10.0` | 92 unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences |
 | `FidoRelay.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
 | `FidoRelay.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
 | `FidoRelay.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
@@ -144,6 +144,7 @@ Bound to `0.0.0.0` so the ESP32 can reach it across the LAN. Port is overridable
   "month_cost_usd": null,
   "activity": "Working",
   "activity_changed_utc": "2026-09-13T08:03:43+00:00",
+  "waiting_message": null,
   "session_status": "Active",
   "last_event_utc": "2026-09-13T08:03:43+00:00",
   "session_ended_utc": null,
@@ -344,10 +345,30 @@ display can derive the same pose from the same state instead of inventing its ow
 
 Right-click menu: a **FidoRelay v1.2.3** header (the build version, stamped at compile time —
 clicking it opens the GitHub repository), then the current session and week figures
-(display-only), then **Advanced** and **Exit**. The actions live under **Advanced** — **Pause HTTP service**, **Open in Browser** (opens
-`/status`), **Re-register hooks**, **Fix firewall access…** — so the top level is only what you
-came to read. Double-clicking the icon still opens `/status`, keeping a shortcut on the common
-action.
+(display-only), then **Advanced** and **Exit**. The actions live under **Advanced** — **Notify
+when waiting**, **Pause HTTP service**, **Open in Browser** (opens `/status`), **Re-register
+hooks**, **Fix firewall access…** — so the top level is only what you came to read.
+Double-clicking the icon still opens `/status`, keeping a shortcut on the common action.
+
+### Notification when Claude is waiting for you
+
+`Waiting` is the one state that needs the user, and the easiest to miss while looking at something
+else, so entering it raises a tray notification. It quotes the Notification hook's own text —
+typically *"Claude needs your permission to use Bash"* — which is carried on `/status` as
+`waiting_message` and falls back to a plain line if the hook sends none. The field is cleared on
+the way out of `Waiting`, so a prompt from ten minutes ago can never be shown against a later
+state.
+
+It fires **on the transition only**. `Refresh` runs on every state write and every pose-timer
+tick, so notifying on "is currently Waiting" would repeat the same prompt indefinitely; it is
+keyed off `activity_changed_utc` instead, giving one notification per wait, while a second prompt
+in the same session still gets its own because the timestamp moves.
+
+**Advanced → Notify when waiting** turns it off. It is **on by default**, which is why the marker
+file records the *disabled* state (`notifications-disabled.flag`) — that way a missing or
+unreadable preference gives the default, and there is no first-run write. The setting is read at
+the moment of use, so it takes effect immediately rather than at the next restart, and like the
+pause it survives one.
 
 ### Pausing the HTTP service
 

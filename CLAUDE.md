@@ -81,6 +81,16 @@ this turn (`Stop` sets `Idle` the instant a turn ends, so a live conversation re
 the time); `session_status` is whether a session is open at all. Keep them independent — the session
 hooks deliberately leave `activity` untouched.
 
+**Tray preferences are marker files, not `state.json` fields** (`FlagPreference`, in `Core/State`).
+`state.json` is the wire payload the hook process rewrites constantly; a preference does not belong
+in it or on `/status`. The file always marks the **non-default** setting, so a missing or unreadable
+preference yields the default and there is no first-run write — hence `http-paused.flag` (default
+running) and `notifications-disabled.flag` (default on).
+
+**`Refresh` runs on every state write *and* every pose-timer tick.** Anything with a side effect —
+a notification, a balloon — must fire on a transition, keyed off `activity_changed_utc`, not on
+"state is currently X", or it repeats forever.
+
 **Never regenerate `~/.claude/settings.json`.** It holds unrelated user config. The merger
 read-modify-writes a JSON tree, backs the file up once, leaves a third-party `statusLine` alone with
 a warning rather than clobbering it, and refuses to touch a file it cannot parse.

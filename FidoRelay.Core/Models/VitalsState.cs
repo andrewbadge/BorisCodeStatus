@@ -66,6 +66,15 @@ public sealed record VitalsState
     public DateTimeOffset? ActivityChangedUtc { get; init; }
 
     /// <summary>
+    /// What Claude Code is blocked on, from the Notification hook's own text — typically naming
+    /// the tool awaiting permission. Null unless <see cref="Activity"/> is
+    /// <see cref="ActivityState.Waiting"/>; it is cleared on the way out so a stale prompt cannot
+    /// be shown against a later state.
+    /// </summary>
+    [JsonPropertyName("waiting_message")]
+    public string? WaitingMessage { get; init; }
+
+    /// <summary>
     /// When a Claude Code session event (statusLine or a lifecycle hook) was last seen.
     /// Distinct from <see cref="LastUpdatedUtc"/>, which also moves for background writes such
     /// as the usage-API refresh — those say nothing about whether a session is open.
