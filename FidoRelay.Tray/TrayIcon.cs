@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Drawing;
 using System.Globalization;
+using System.Reflection;
 using FidoRelay.Core;
 using FidoRelay.Core.Models;
 using FidoRelay.Core.State;
@@ -12,6 +14,9 @@ namespace FidoRelay.Tray;
 /// </summary>
 internal sealed class TrayIcon : IDisposable
 {
+    /// <summary>Where the menu header points. Private today, so this may 404 for anyone else.</summary>
+    private const string RepositoryUrl = "https://github.com/andrewbadge/FidoRelay";
+
     private readonly NotifyIcon _notifyIcon;
     private readonly VitalsStateStore _store;
     private readonly int _port;
@@ -47,14 +52,30 @@ internal sealed class TrayIcon : IDisposable
         _weekItem = new ToolStripMenuItem("Week: —") { Enabled = false };
         _activityItem = new ToolStripMenuItem("Status: —") { Enabled = false };
 
+        // Everything actionable sits under Advanced: the top level is then purely the current
+        // figures, which is what someone opening the menu is almost always here to read.
+        // Double-clicking the icon still opens the browser, so the common action keeps a shortcut.
+        var advanced = new ToolStripMenuItem("Advanced");
+        advanced.DropDownItems.Add(new ToolStripMenuItem("Open in Browser", null, (_, _) => OpenDashboard()));
+        advanced.DropDownItems.Add(new ToolStripMenuItem("Re-register hooks", null, (_, _) => ReRegisterHooks()));
+        advanced.DropDownItems.Add(new ToolStripMenuItem("Fix firewall access...", null, (_, _) => FixFirewallAccess()));
+
+        // Header: what is running, and a way to get to the source. Left enabled so it can be
+        // clicked; the repo is private today, so for anyone but the owner this will land on
+        // GitHub's 404 rather than the project — acceptable, and self-correcting if it opens up.
+        var titleItem = new ToolStripMenuItem($"FidoRelay v{BuildVersion}", null, (_, _) => OpenUrl(RepositoryUrl))
+        {
+            Font = new Font(SystemFonts.MenuFont ?? SystemFonts.DefaultFont, FontStyle.Bold),
+        };
+
         var menu = new ContextMenuStrip();
+        menu.Items.Add(titleItem);
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_activityItem);
         menu.Items.Add(_sessionItem);
         menu.Items.Add(_weekItem);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(new ToolStripMenuItem("Open dashboard", null, (_, _) => OpenDashboard()));
-        menu.Items.Add(new ToolStripMenuItem("Re-register hooks", null, (_, _) => ReRegisterHooks()));
-        menu.Items.Add(new ToolStripMenuItem("Fix firewall access...", null, (_, _) => FixFirewallAccess()));
+        menu.Items.Add(advanced);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Exit", null, (_, _) => Application.Exit()));
 
@@ -203,15 +224,39 @@ internal sealed class TrayIcon : IDisposable
         return text.Length <= 63 ? text : text[..63];
     }
 
-    private void OpenDashboard()
+    private void OpenDashboard() => OpenUrl($"http://localhost:{_port}/status");
+
+    private void OpenUrl(string url)
     {
         try
         {
-            Process.Start(new ProcessStartInfo($"http://localhost:{_port}/status") { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
             ShowBalloon("Could not open the browser.", ToolTipIcon.Warning);
+        }
+    }
+
+    /// <summary>
+    /// The version stamped at build time, for the menu header. Informational version is the one
+    /// that carries the value from Directory.Build.props; anything after a '+' is build metadata
+    /// the user has no use for.
+    /// </summary>
+    private static string BuildVersion
+    {
+        get
+        {
+            var informational = typeof(TrayIcon).Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+            if (string.IsNullOrWhiteSpace(informational))
+            {
+                return typeof(TrayIcon).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+            }
+
+            var plus = informational.IndexOf('+', StringComparison.Ordinal);
+            return plus < 0 ? informational : informational[..plus];
         }
     }
 
