@@ -108,7 +108,7 @@ API call.
 | Project | Target | Role |
 |---|---|---|
 | `FidoRelay.Core` | `net10.0` | Models, state store, settings merger, usage API client |
-| `FidoRelay.Core.Tests` | `net10.0` | 75 unit tests over parsing, state, merging, throttling, dog poses |
+| `FidoRelay.Core.Tests` | `net10.0` | 84 unit tests over parsing, state, merging, throttling, dog poses, pause/resume |
 | `FidoRelay.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
 | `FidoRelay.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
 | `FidoRelay.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
@@ -319,6 +319,18 @@ binaries in the repo and the glyph stays diffable. 20px is the largest sprite th
 on a 32px canvas; grow either and the ring clips the ears and the accent block. Pixels are blitted
 1:1 with `SetPixel` — any scaling or interpolation destroys pixel art.
 
+### The application icon
+
+Separate from the tray glyph, `FidoRelay.Tray/fido.ico` is what Explorer, the Start Menu, Alt-Tab
+and Installed Apps show. It is the one committed binary in the project: the toolchain's
+`ApplicationIcon` takes a file path, not pixel data, so the `DogSprites` approach does not apply.
+
+It packs the design's 16/20/24/32/48/64/256 sheets into one file so Windows always has an exact
+size and never resamples. It uses the **orange** variant, because at this size the accent reads as
+the brand colour rather than as a state. The Start Menu shortcut carries no `Icon` attribute — it
+inherits the icon compiled into the executable — while `ARPPRODUCTICON` points the Installed Apps
+entry at the same file.
+
 **The dog sleeps after 5 minutes (`DogStates.SleepAfter`), but `session_status` does not report
 `Inactive` until 15.** These are deliberately different clocks: the icon is ambient and can settle
 after a quiet spell, while the API field is what the panel keys off and should not claim a session
@@ -346,18 +358,37 @@ It releases the TCP port rather than answering with an error status, so a client
 `ConnectionRefused` — the "relay down" case the display already handles — instead of a 503 it
 would have to learn about. Verified on both loopback and the LAN address.
 
-Two consequences worth knowing:
+**The pause survives a restart**, including the automatic one at login — someone who switched the
+endpoint off did not mean "until I next log in". It is remembered as a marker file,
+`%LOCALAPPDATA%\FidoRelay\http-paused.flag`, rather than a field in `state.json`: that file is the
+wire payload, rewritten constantly by the hook process, and a preference has no business being
+carried in it or exposed on `/status`. The file's existence is the whole flag, so there is nothing
+to parse and nothing that can corrupt into a confusing half-state. Delete it to un-pause without
+the menu.
 
-- **Usage-API polling stops too.** `UsageApiRefreshService` is a hosted service inside the same
-  app, so pausing stops it. That is intended: a paused relay should be doing nothing at all.
-- **A pause is not persisted.** It lasts until the app restarts. Persisting it would let someone
-  pause, forget, reboot weeks later and end up debugging a display that was switched off on
-  purpose. The menu item shows a tick while paused, and both the status line and the tray tooltip
-  read **HTTP paused**, because a pause is otherwise invisible from outside.
+Because a pause is otherwise invisible from outside, the menu item shows a tick while paused and
+both the status line and the tray tooltip read **HTTP paused**. If the preference cannot be
+written, the pause still takes effect and the balloon says it will not survive a restart.
+
+**Pausing needs no elevation.** This is a per-user app with no service and no admin rights
+anywhere in its design, and gating a local toggle behind UAC would be both out of keeping and
+pointless — anyone who can run the tray can also close it.
+
+**Usage-API polling stops too.** `UsageApiRefreshService` is a hosted service inside the same app,
+so pausing stops it. That is intended: a paused relay should be doing nothing at all.
 
 Resuming builds a fresh listener — a stopped `WebApplication` cannot be restarted, which is why
 `VitalsApiHost` holds the options and store rather than the app. If something else took the port
 while you were paused, resuming fails with a balloon rather than silently staying down.
+
+> **Start and Stop must never capture a `SynchronizationContext`.** Both bridge async work
+> synchronously, and doing that directly on the UI thread deadlocks the tray outright: the
+> framework posts its continuations back to the thread that is blocked waiting for them, and the
+> shutdown timeout does not help, because cancelling does not release a continuation that can
+> never be scheduled. `VitalsApiHost.RunDetached` hands the work to the thread pool to prevent it,
+> and the tray additionally runs the toggle off the UI thread so the menu stays responsive.
+> `DoesNotDeadlockOnAThreadWithASynchronizationContext` is the regression guard — it was confirmed
+> to fail without the fix, not just pass with it.
 
 ---
 

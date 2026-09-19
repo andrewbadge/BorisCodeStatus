@@ -13,6 +13,9 @@ public static class VitalsPaths
     /// <summary>Records when the fallback usage API was last called, to enforce the interval across processes.</summary>
     public static string UsageApiStampFile => Path.Combine(DataDirectory, "usage-api.stamp");
 
+    /// <summary>Present when the user has paused the HTTP service. Its existence is the flag.</summary>
+    public static string PausedFlagFile => Path.Combine(DataDirectory, "http-paused.flag");
+
     /// <summary>~\.claude</summary>
     public static string ClaudeDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
