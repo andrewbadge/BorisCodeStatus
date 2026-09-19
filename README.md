@@ -445,13 +445,23 @@ than several. Runs on `main` are never cancelled, so every merged commit keeps i
 
 ### Publishing a release
 
-`.github/workflows/release.yml` is **run manually**: Actions → Release → *Run workflow*. It asks for
-the version, then builds, tests, verifies and publishes in one go, creating the tag itself so the
-tag and the MSI can never disagree.
+`.github/workflows/release.yml` is **run manually**: Actions → Release → *Run workflow*. It builds,
+tests, verifies and publishes in one go, creating the tag itself so the tag and the MSI can never
+disagree.
+
+**The version is not an input.** It comes from `<Version>` in `Directory.Build.props` — the same
+value stamped onto every assembly and shown in the tray menu — so a published release can never
+claim a version the installed app disagrees with. To release:
+
+1. Raise `<Version>` in `Directory.Build.props` and merge that.
+2. Run the workflow.
+
+The build takes no `-p:Version` override, so the file drives the MSI exactly as it drives a local
+build; the verification step then checks that file all the way through to the MSI, rather than
+checking the workflow against a value the workflow itself supplied.
 
 | Input | Meaning |
 |---|---|
-| `version` | `1.1.0`, or `v1.1` — normalised to `1.1.0` |
 | `prerelease` | Mark the GitHub Release as a pre-release |
 | `force` | Publish even if the version is not higher than the latest release |
 
@@ -464,7 +474,7 @@ expensive to discover afterwards:
 - **Not `major.minor.build`** — an MSI `ProductVersion` cannot carry a `-rc1` style suffix.
 - **Any part above 65535** — MSI version fields are 16-bit and Windows silently truncates larger
   values, producing a package that upgrades unpredictably.
-- **Tag already exists** — pick a new version rather than quietly moving a published tag.
+- **Tag already exists** — raise `<Version>` rather than quietly moving a published tag.
 - **Not higher than the latest release** — `MajorUpgrade` will not replace an installed copy
   otherwise, so the release would install but never supersede anything. Override with `force` if
   that is genuinely intended.

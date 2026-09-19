@@ -33,6 +33,11 @@ curl http://localhost:5080/status
 Releases are published by manually running the **Release** workflow from the Actions tab, never by
 pushing a tag. `build.yml` runs on every push/PR to `main`.
 
+**`<Version>` in `Directory.Build.props` is the single source of truth for the version** — it is
+stamped on every assembly, shown in the tray menu, and read by the release workflow to pick the tag
+and the MSI `ProductVersion`. It is deliberately not a workflow input, so a release cannot claim a
+version the installed app disagrees with. To release: raise it, merge, then run the workflow.
+
 ## Architecture
 
 Two processes, no IPC between them — they share one JSON file:

@@ -1,17 +1,18 @@
 name: Release
 
 # Publishes a GitHub Release with the MSI attached. Run manually from the Actions tab:
-# Actions -> Release -> "Run workflow" -> enter the version.
+# Actions -> Release -> "Run workflow".
 #
 # Releasing is deliberately a manual, deliberate act rather than something a tag push triggers as
-# a side effect. The version entered here becomes both the git tag and the MSI ProductVersion, so
-# the two can never drift apart.
+# a side effect.
+#
+# The version is NOT an input. It is read from <Version> in Directory.Build.props, which is the
+# same value stamped onto every assembly and shown in the tray menu. Typing a version here instead
+# let the published release disagree with what the installed app reports about itself. To release
+# a new version, raise <Version> in Directory.Build.props, merge that, then run this workflow.
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version for this release, e.g. 1.1.0 (or v1.1 - it will be normalised)'
-        required: true
       prerelease:
         description: 'Mark as a pre-release'
         type: boolean
@@ -49,22 +50,25 @@ jobs:
       - name: Install WiX v4
         run: dotnet tool install --global wix --version 4.0.5
 
-      - name: Validate version
+      - name: Read version from Directory.Build.props
         id: version
         shell: pwsh
         run: |
-          $raw = '${{ github.event.inputs.version }}'.Trim()
+          # The single source of truth: this same value is stamped onto every assembly and is what
+          # the tray menu displays, so a release can never claim a version the app disagrees with.
+          $props = 'Directory.Build.props'
+          $raw = ([xml](Get-Content $props)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
 
-          # Accept the way people actually type a version: with or without a leading v, and with
-          # two parts or three. Normalise to one canonical form so the tag and the MSI agree.
-          $version = $raw -replace '^[vV]', ''
-          if ($version -match '^\d+\.\d+$') {
-            $version = "$version.0"
-            Write-Host "Normalised '$raw' to '$version' (an MSI ProductVersion needs three parts)."
+          if (-not $raw) {
+            Write-Error "No <Version> found in $props. That file is the source of truth for the release version."
+            exit 1
           }
 
+          $version = "$raw".Trim()
+          Write-Host "Version from ${props}: $version"
+
           if ($version -notmatch '^\d+\.\d+\.\d+$') {
-            Write-Error "'$raw' is not a valid version. Use major.minor.build, e.g. 1.1.0. An MSI ProductVersion cannot carry a suffix such as -rc1."
+            Write-Error "'$version' in $props is not usable. Use major.minor.build, e.g. 1.1.0. An MSI ProductVersion cannot carry a suffix such as -rc1."
             exit 1
           }
 
@@ -80,7 +84,7 @@ jobs:
           $tag = "v$version"
 
           if (git tag --list $tag) {
-            Write-Error "Tag $tag already exists. Pick a new version, or delete the existing tag and release first."
+            Write-Error "Tag $tag already exists. Raise <Version> in Directory.Build.props, or delete the existing tag and release first."
             exit 1
           }
 
@@ -97,7 +101,7 @@ jobs:
             Write-Host "Latest existing release: v$existing"
             if ([version]$version -le $existing) {
               if ('${{ github.event.inputs.force }}' -ne 'true') {
-                Write-Error "Version $version is not higher than the latest release ($existing). Installed copies would not upgrade. Re-run with 'force' if this is deliberate."
+                Write-Error "Version $version is not higher than the latest release ($existing). Installed copies would not upgrade. Raise <Version> in Directory.Build.props, or re-run with 'force' if this is deliberate."
                 exit 1
               }
               Write-Warning "Version $version is not higher than $existing, continuing because force was set."
@@ -118,8 +122,11 @@ jobs:
       - name: Test
         run: dotnet test FidoRelay.Core.Tests -c Release --no-restore
 
+      # No -p:Version override: the build takes it from Directory.Build.props like every other
+      # build does. The verification below then checks that file all the way through to the MSI,
+      # rather than checking the workflow against a value the workflow itself supplied.
       - name: Build MSI
-        run: dotnet build -c Release --no-restore -p:Version=${{ steps.version.outputs.version }}
+        run: dotnet build -c Release --no-restore
 
       - name: Verify the MSI looks right
         shell: pwsh
