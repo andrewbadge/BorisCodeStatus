@@ -53,6 +53,11 @@ Claude Code ──stdin JSON──▶ FidoRelay.Hooks.exe ──writes──▶ 
 - **Tray** — WinForms host: owns the message loop, starts the API, draws the icon from live data,
   and registers hooks on every launch (idempotent, so it repairs a stale path after an upgrade).
 
+The tray glyph is an 8-bit dog in a quota ring, drawn at runtime from palette-index grids in
+`DogSprites.cs` (one char per pixel). Blit 1:1 only — scaling destroys it — and do not grow the
+sprite past 20px on the 32px canvas or the ring clips it. The pose rule is `DogStates.For` in
+**Core**, not the tray, because the ESP32 must derive the same pose from the same state.
+
 `VitalsState` **is** the `/status` contract — snake_case `JsonPropertyName` on every member, keyed
 off directly by ESP32 firmware. Adding a field changes the wire format; update the README payload
 sample in the same change.
