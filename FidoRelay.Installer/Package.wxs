@@ -125,5 +125,20 @@
         RebootPrompt="no"
         Timeout="10" />
 
+    <!--
+      The same, for the executable's pre-rename name. Upgrading from a ClaudeVitals install would
+      otherwise leave that tray running: it keeps port 5080, so the freshly installed FidoRelay
+      tray cannot bind and greets the user with the "port already in use" dialog instead of an icon.
+      Removable once nobody is running a pre-rename build.
+    -->
+    <util:CloseApplication
+        xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+        Id="CloseLegacyTray"
+        Target="ClaudeVitals.Tray.exe"
+        CloseMessage="yes"
+        TerminateProcess="1"
+        RebootPrompt="no"
+        Timeout="10" />
+
   </Package>
 </Wix>
