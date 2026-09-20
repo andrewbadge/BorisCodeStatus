@@ -108,7 +108,7 @@ API call.
 | Project | Target | Role |
 |---|---|---|
 | `FidoRelay.Core` | `net10.0` | Models, state store, settings merger, usage API client |
-| `FidoRelay.Core.Tests` | `net10.0` | 92 unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences |
+| `FidoRelay.Core.Tests` | `net10.0-windows` | 114 unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences, firewall port matching |
 | `FidoRelay.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
 | `FidoRelay.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
 | `FidoRelay.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |

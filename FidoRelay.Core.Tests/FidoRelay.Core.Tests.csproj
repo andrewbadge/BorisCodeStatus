@@ -1,7 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- Windows-targeted so the tray can be referenced and its Windows-only logic tested. The app
+         is Windows-only anyway and CI runs on windows-latest, so nothing is lost by saying so. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -21,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FidoRelay.Api\FidoRelay.Api.csproj" />
     <ProjectReference Include="..\FidoRelay.Core\FidoRelay.Core.csproj" />
+    <ProjectReference Include="..\FidoRelay.Tray\FidoRelay.Tray.csproj" />
   </ItemGroup>
 
 </Project>

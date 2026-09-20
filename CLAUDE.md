@@ -113,7 +113,12 @@ Match that register; the existing XML doc comments are the house style.
   and repair with the tray's **Re-register hooks**.
 - `/status` is unauthenticated and bound to `0.0.0.0` by design in v1. Do not quietly widen what it
   exposes; it already serves session names and cost to anything on the LAN.
-- `VitalsStateStore.JsonOptions` is `internal`, and the test project has no `InternalsVisibleTo` —
-  construct local `JsonSerializerOptions(JsonSerializerDefaults.Web)` in tests.
+- `VitalsStateStore.JsonOptions` is `internal` and `FidoRelay.Core` grants no `InternalsVisibleTo` —
+  construct local `JsonSerializerOptions(JsonSerializerDefaults.Web)` in tests. (`FidoRelay.Tray`
+  *does* grant it, so its `internal` members are testable.)
+- **Anything time-dependent must take its instant as a parameter, and the whole decision must use
+  that one instant.** `DogStates.For(state, now)` mixed an injected clock with `UtcNow` inside
+  `SessionStatus`; it agreed at runtime, where both are "now", and made the tests pass one day and
+  fail the next. Hence `VitalsState.SessionStatusAt(now)`.
 - The MSI must never set `ALLUSERS`; the release workflow asserts this, because setting it would
   turn a per-user install back into one demanding administrator rights.

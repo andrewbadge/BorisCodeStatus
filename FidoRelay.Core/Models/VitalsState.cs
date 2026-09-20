@@ -93,26 +93,33 @@ public sealed record VitalsState
     /// </summary>
     [JsonPropertyName("session_status")]
     [JsonConverter(typeof(JsonStringEnumConverter<SessionStatus>))]
-    public SessionStatus SessionStatus
+    public SessionStatus SessionStatus => SessionStatusAt(DateTimeOffset.UtcNow);
+
+    /// <summary>
+    /// <see cref="SessionStatus"/> judged against a given instant.
+    ///
+    /// Exists so callers that already have a clock — the dog-pose rule, and tests — can use one
+    /// consistently. Mixing an injected time with <see cref="DateTimeOffset.UtcNow"/> inside the
+    /// same decision is incoherent: it happens to agree at runtime, where both are "now", and
+    /// disagrees everywhere else.
+    /// </summary>
+    public SessionStatus SessionStatusAt(DateTimeOffset now)
     {
-        get
+        if (LastEventUtc is not { } lastEvent)
         {
-            if (LastEventUtc is not { } lastEvent)
-            {
-                return SessionStatus.Unknown;
-            }
-
-            // SessionEnd stamps both timestamps with the same instant, so ">=" is what lets an
-            // end win over the event that carried it; any later event moves LastEventUtc past it.
-            if (SessionEndedUtc is { } ended && ended >= lastEvent)
-            {
-                return SessionStatus.Ended;
-            }
-
-            return DateTimeOffset.UtcNow - lastEvent > SessionIdleTimeout
-                ? SessionStatus.Inactive
-                : SessionStatus.Active;
+            return SessionStatus.Unknown;
         }
+
+        // SessionEnd stamps both timestamps with the same instant, so ">=" is what lets an
+        // end win over the event that carried it; any later event moves LastEventUtc past it.
+        if (SessionEndedUtc is { } ended && ended >= lastEvent)
+        {
+            return SessionStatus.Ended;
+        }
+
+        return now - lastEvent > SessionIdleTimeout
+            ? SessionStatus.Inactive
+            : SessionStatus.Active;
     }
 
     /// <summary>When any field was last written.</summary>
