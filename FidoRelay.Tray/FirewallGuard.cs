@@ -259,7 +259,7 @@ internal static class FirewallGuard
     /// warning, while a wrongly assumed one would tell the user they are reachable when they are
     /// not, and the display would just never update.
     /// </summary>
-    private static bool PortsInclude(string? localPorts, int port)
+    internal static bool PortsInclude(string? localPorts, int port)
     {
         if (string.IsNullOrWhiteSpace(localPorts))
         {

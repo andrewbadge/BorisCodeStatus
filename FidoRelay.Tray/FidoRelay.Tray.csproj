@@ -28,6 +28,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The firewall rule matching is Windows-only and so cannot live in Core, but it is exactly
+         the kind of parsing that deserves tests. Exposed to the test project rather than made
+         public: it is an implementation detail, not API. -->
+    <InternalsVisibleTo Include="FidoRelay.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\FidoRelay.Core\FidoRelay.Core.csproj" />
     <ProjectReference Include="..\FidoRelay.Api\FidoRelay.Api.csproj" />
   </ItemGroup>

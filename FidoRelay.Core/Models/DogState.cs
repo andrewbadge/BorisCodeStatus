@@ -42,7 +42,9 @@ public static class DogStates
 
         // A closed or long-dead session outranks whatever the last activity happened to be:
         // Stop fires before SessionEnd, so the final activity of every session is Idle.
-        if (state.SessionStatus is SessionStatus.Ended or SessionStatus.Inactive or SessionStatus.Unknown)
+        // Judged against the same instant as the idle check below, rather than wall-clock time,
+        // so the whole rule answers for one moment.
+        if (state.SessionStatusAt(now) is SessionStatus.Ended or SessionStatus.Inactive or SessionStatus.Unknown)
         {
             return DogState.Sleeping;
         }

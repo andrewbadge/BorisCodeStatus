@@ -94,4 +94,25 @@ public class DogStateTests
     {
         Assert.True(DogStates.SleepAfter < VitalsState.SessionIdleTimeout);
     }
+
+    /// <summary>
+    /// The whole rule must answer for the injected instant, not partly for wall-clock time.
+    /// This state is minutes old by its own clock and more than a year old by the real one; if
+    /// session status were judged against UtcNow it would read Inactive and the dog would sleep.
+    /// Written after exactly that mix made these tests pass one day and fail the next.
+    /// </summary>
+    [Fact]
+    public void JudgesSessionStatusAgainstTheInjectedClock()
+    {
+        var longAgo = new DateTimeOffset(2020, 1, 1, 9, 0, 0, TimeSpan.Zero);
+        var state = new VitalsState
+        {
+            Activity = ActivityState.Working,
+            ActivityChangedUtc = longAgo,
+            LastEventUtc = longAgo,
+        };
+
+        Assert.Equal(DogState.Working, DogStates.For(state, longAgo.AddMinutes(1)));
+        Assert.Equal(DogState.Sleeping, DogStates.For(state, longAgo.AddHours(1)));
+    }
 }
