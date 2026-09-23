@@ -50,6 +50,9 @@ internal sealed class TrayIcon : IDisposable
     /// </summary>
     private DateTimeOffset? _lastNotifiedWaitAt;
 
+    /// <summary>The waiting notification. Null until the first one is shown.</summary>
+    private WaitingCard? _waitingCard;
+
     private bool _disposed;
 
     public TrayIcon(VitalsStateStore store, int port, VitalsApiHost api)
@@ -207,6 +210,11 @@ internal sealed class TrayIcon : IDisposable
             // Forget the last one, so returning to Waiting later notifies again even in the
             // unlikely event the timestamp repeats.
             _lastNotifiedWaitAt = null;
+
+            // The prompt has been answered in the terminal, so the card is now wrong — take it
+            // down rather than leave it counting out its lifetime. A balloon could not be recalled;
+            // this is one of the things the card buys.
+            _waitingCard?.Dismiss();
             return;
         }
 
@@ -226,12 +234,18 @@ internal sealed class TrayIcon : IDisposable
         }
 
         // The hook's own text names what is blocked, e.g. "Claude needs your permission to use
-        // Bash". Falling back to something plain is better than an empty balloon if it is absent.
-        var detail = string.IsNullOrWhiteSpace(state.WaitingMessage)
-            ? "Claude Code is waiting for your input."
-            : state.WaitingMessage!;
+        // Bash"; WaitingPrompt falls back to something plain if it is absent.
+        ShowWaitingCard(WaitingPrompt.From(state.WaitingMessage));
+    }
 
-        ShowBalloon(detail, ToolTipIcon.Warning, "Claude is waiting for you");
+    /// <summary>
+    /// Created on first use rather than at startup: someone who never meets a prompt, or has
+    /// notifications off, never pays for the window.
+    /// </summary>
+    private void ShowWaitingCard(WaitingPrompt prompt)
+    {
+        _waitingCard ??= new WaitingCard();
+        _waitingCard.ShowPrompt(prompt);
     }
 
     private void UpdateIcon(VitalsState state)
@@ -412,7 +426,10 @@ internal sealed class TrayIcon : IDisposable
         // switch-off with a notification would be a small joke at the user's expense.
         if (enabled)
         {
-            ShowBalloon("You will be notified when Claude is waiting for you.", ToolTipIcon.Info);
+            ShowWaitingCard(new WaitingPrompt(
+                "Notifications on",
+                "You will see this card whenever Claude is waiting for you.",
+                Hint: null));
         }
     }
 
@@ -589,6 +606,8 @@ internal sealed class TrayIcon : IDisposable
         _store.Changed -= OnStateChanged;
         _poseTimer.Stop();
         _poseTimer.Dispose();
+        _waitingCard?.Dispose();
+        _waitingCard = null;
 
         // Hide before disposing, or the icon lingers in the tray until the user hovers over it.
         _notifyIcon.Visible = false;
