@@ -137,6 +137,49 @@ internal static class DogSprites
         "00000000000001111110",
     ];
 
+    /// <summary>
+    /// The full-size waiting dog for the notification card — the 32×32 design sprite trimmed to
+    /// its bounds (23×26), sitting up with the "!" bang. Sampled from the design's rendered card,
+    /// where every sprite pixel is a clean 4×4 block of an exact palette colour, so this is the
+    /// design's grid rather than a redrawing of it.
+    ///
+    /// Not bound by the 20px tray limit above: that limit is the tray ring, and the card has room.
+    /// It is still drawn at an integer pixel size only. Index 9 appears nowhere but the bang, which
+    /// is what lets the card blink the bang alone by skipping that index.
+    /// </summary>
+    public static readonly string[] WaitingPortrait =
+    [
+        "00001000000000001000000",
+        "00013100011100013100900",
+        "00133111122211113310900",
+        "00133122222222213310900",
+        "01333222222333333331000",
+        "01333222223333333331900",
+        "13333222223333333333100",
+        "13333227123371333333100",
+        "01112221123311333111000",
+        "00012221155511333100000",
+        "00012222211122332100000",
+        "00015222211122225100000",
+        "00001522521522251000000",
+        "00000152122155510000000",
+        "00000012222211100000000",
+        "00000122222221110000110",
+        "00001222222222221001331",
+        "00012222222233333101331",
+        "00012222222233333313310",
+        "00012222222233333313310",
+        "00012222222233333331100",
+        "00015222222233333331000",
+        "00001522212233333310000",
+        "00000122212233333100000",
+        "00000155515533331000000",
+        "00000011111111110000000",
+    ];
+
+    /// <summary>The palette index used only by the bang in <see cref="WaitingPortrait"/>.</summary>
+    public const int BangIndex = 9;
+
     public static string[] For(DogState state) => state switch
     {
         DogState.Working => Working,

@@ -367,11 +367,31 @@ Double-clicking the icon still opens `/status`, keeping a shortcut on the common
 ### Notification when Claude is waiting for you
 
 `Waiting` is the one state that needs the user, and the easiest to miss while looking at something
-else, so entering it raises a tray notification. It quotes the Notification hook's own text —
+else, so entering it raises a notification. It quotes the Notification hook's own text —
 typically *"Claude needs your permission to use Bash"* — which is carried on `/status` as
 `waiting_message` and falls back to a plain line if the hook sends none. The field is cleared on
 the way out of `Waiting`, so a prompt from ten minutes ago can never be shown against a later
 state.
+
+The notification is **a card drawn by the app, not a Windows balloon** — the design's display
+card: a bezel around a 320×240 screen (the ESP32 panel's size) with `CLAUDE CODE` / `WAITING`, the
+full-size waiting dog with its blinking bang, a pixel-font heading and an amber bar. A balloon's
+layout belongs to Windows, so none of that is possible there. Details worth knowing:
+
+- **It never takes focus.** It is a non-activating tool window (no taskbar button), so it cannot
+  swallow keystrokes meant for the terminal. Clicking it dismisses it; it cannot answer the prompt.
+  `Y / N` beside the bar says what Claude is asking, not a key to press on the card.
+- **The bar is a countdown** — 12 seconds, held while the pointer is over the card — and the card
+  **disappears as soon as the prompt is answered**, because leaving `Waiting` dismisses it.
+- **The heading is inferred from the message text** (`WaitingPrompt`): "permission" gives
+  *PERMISSION NEEDED*, "waiting for your input" gives *INPUT NEEDED*, anything else *CLAUDE NEEDS
+  YOU*. Those phrases are what Claude Code has been seen to send, not a documented contract, which
+  is why the fallback heading is one that is true of every Notification.
+- The dog is `DogSprites.WaitingPortrait`, sampled pixel-for-pixel from the design; the heading
+  font is a 5×7 bitmap font kept as data in `PixelFont`. Both are drawn at a whole number of
+  device pixels per design pixel, so they stay crisp at any DPI; the rest of the layout scales.
+- It appears bottom-right of the **primary** monitor's working area, which is beside the tray for
+  a bottom taskbar. The other tray messages (firewall, pause, re-register) are still balloons.
 
 It fires **on the transition only**. `Refresh` runs on every state write and every pose-timer
 tick, so notifying on "is currently Waiting" would repeat the same prompt indefinitely; it is
