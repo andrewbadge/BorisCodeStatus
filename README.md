@@ -25,6 +25,12 @@ to install.
 > **Unofficial.** This is an independent community project. It is not made, endorsed or supported
 > by Anthropic. See [Trademarks](#trademarks).
 
+### Why Boris?
+
+Boris is a spoodle — the dog of the project's author, [Andrew Badge](https://github.com/andrewbadge).
+He is the pixel-art dog in the tray: working when Claude is working, waiting when it needs you,
+and asleep when nothing is happening.
+
 ## Quick start
 
 **Requirements:** Windows 10 or 11 (x64) and Claude Code. The quota figures need a Claude
