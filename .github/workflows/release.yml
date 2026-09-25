@@ -120,7 +120,7 @@ jobs:
       # The release build runs the tests too. They are quick, and shipping an MSI built from code
       # that fails its own tests is not a trade worth making for a minute of runtime.
       - name: Test
-        run: dotnet test FidoRelay.Core.Tests -c Release --no-restore
+        run: dotnet test BorisCodeStatus.Core.Tests -c Release --no-restore
 
       # No -p:Version override: the build takes it from Directory.Build.props like every other
       # build does. The verification below then checks that file all the way through to the MSI,
@@ -133,7 +133,7 @@ jobs:
         run: |
           # Guard against shipping a package that built but is wrong. Cheap compared to publishing
           # a broken installer under a permanent version number.
-          $msi = "FidoRelay.Installer\bin\Release\FidoRelay.msi"
+          $msi = "BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi"
           if (-not (Test-Path $msi)) { throw "MSI was not produced at $msi" }
 
           $installer = New-Object -ComObject WindowsInstaller.Installer
@@ -161,7 +161,7 @@ jobs:
           if ($actual -ne $expected) { throw "MSI ProductVersion is '$actual', expected '$expected'" }
 
           $files = Invoke-MsiQuery "SELECT ``FileName`` FROM ``File``" 1
-          foreach ($required in @('FidoRelay.Tray.exe', 'FidoRelay.Hooks.exe')) {
+          foreach ($required in @('BorisCodeStatus.Tray.exe', 'BorisCodeStatus.Hooks.exe')) {
             if (-not ($files | Where-Object { $_ -like "*$required" })) { throw "$required is missing from the MSI" }
           }
 
@@ -182,14 +182,14 @@ jobs:
           $tag = '${{ steps.version.outputs.tag }}'
 
           # Name the asset after the version so downloads stay distinguishable once saved.
-          $asset = "FidoRelay-$version.msi"
-          Copy-Item "FidoRelay.Installer\bin\Release\FidoRelay.msi" $asset
+          $asset = "BorisCodeStatus-$version.msi"
+          Copy-Item "BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi" $asset
 
           # Built as an array rather than a here-string: PowerShell treats a backtick as an escape
           # character, so markdown code spans inside a here-string would be silently mangled.
           # Written to a file and passed with --notes-file to avoid multi-line argument quoting.
           $notes = @(
-            'Per-user Windows installer for the FidoRelay.',
+            'Per-user Windows installer for BorisCodeStatus.',
             '',
             "**Install:** run $asset. No administrator rights are required - it installs under",
             'your local app data, starts at login via an HKCU Run key, and registers its Claude Code',
@@ -200,7 +200,10 @@ jobs:
             'though everything looks fine on the PC itself. If you are not an administrator, use',
             '**Fix firewall access** in the tray menu to get the exact command to send to whoever is.',
             '',
-            'See the README for the /status schema, and note that the endpoint is unauthenticated.'
+            'See the README for the /status schema, and note that the endpoint is unauthenticated.',
+            '',
+            'Free software under the GNU GPL v3 or later; the source for this release is the tagged',
+            'commit. An unofficial community project, not affiliated with Anthropic.'
           )
           Set-Content -Path release-notes.md -Value $notes -Encoding utf8
 

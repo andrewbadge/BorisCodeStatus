@@ -1,16 +1,70 @@
-# FidoRelay
+# BorisCodeStatus
 
-A small Windows user-mode background app that exposes Claude Code session and usage data over
-HTTP on the local network, so an ESP32-based physical display (CrowPanel) can poll it.
+A small Windows tray app that shows what [Claude Code](https://docs.claude.com/en/docs/claude-code)
+is doing — working, idle, or waiting for your permission — and how much of your usage quota is
+left, and serves the same data over HTTP on your local network so a physical display (an
+ESP32-based CrowPanel, in the setup it was built for) can show it too.
 
-It runs as a system-tray icon — no console window, no Windows service, no administrator rights.
+- A pixel-art dog in the tray changes pose with Claude's state; a ring around it shows the
+  five-hour quota used.
+- A notification card pops up when Claude is waiting on you, so a permission prompt is not missed.
+- `GET /status` on port 5080 returns the whole picture as JSON for any device on the LAN.
+
+It runs as a per-user tray icon — no console window, no Windows service, no administrator rights
+to install.
+
+> **Unofficial.** This is an independent community project. It is not made, endorsed or supported
+> by Anthropic. See [Trademarks](#trademarks).
+
+## Quick start
+
+**Requirements:** Windows 10 or 11 (x64) and Claude Code. The quota figures need a Claude
+subscription login — Claude Code omits `rate_limits` on API-key sessions, so those show state only.
+
+1. Download `BorisCodeStatus-<version>.msi` from the
+   [Releases](https://github.com/andrewbadge/BorisCodeStatus/releases) page and run it.
+   It installs for your user only; there is no UAC prompt.
+2. The tray icon appears and registers its hooks in `~/.claude/settings.json` (see
+   [Hook registration](#hook-registration-first-run-logic-not-an-msi-custom-action) for exactly
+   what it writes, and what it refuses to overwrite).
+3. If you want another device to reach it, **allow the Windows Firewall prompt** — this is the one
+   step that needs an administrator. See [Windows Firewall](#the-one-place-admin-can-appear-windows-firewall).
+4. Check it: `curl http://localhost:5080/status`.
+
+The display firmware is a separate project and is not part of this repository. Anything that can
+make an HTTP `GET` and parse JSON can consume `/status`.
+
+## Privacy: what it reads, and what leaves your machine
+
+Worth knowing before you install anything that hooks into Claude Code:
+
+- **It reads** a few fields of the JSON Claude Code pipes to its hooks: model, usage percentages,
+  cost, session id and name, the event name, and the text of permission prompts. Claude Code sends
+  each hook its whole payload — for `UserPromptSubmit` that includes your prompt — but the hook
+  deserialises only those fields and discards the rest unread. It never opens your transcripts or
+  project files.
+- **It reads your Claude Code OAuth token** from `~/.claude/.credentials.json`, for one purpose:
+  calling `https://api.anthropic.com/api/oauth/usage` — the same account the token belongs to — at
+  most once every 5 minutes, to fetch the one figure the hooks do not supply. The token is sent
+  nowhere else and is never written anywhere by this app. See [data source 3](#3-apioauthusage--fallback-only).
+- **It serves** the fields shown in the [`/status` sample](#the-status-endpoint) to anything on your
+  LAN, **without authentication**. That includes session names and cost. Read the
+  security note under [The `/status` endpoint](#the-status-endpoint) before using it on a network you do
+  not trust.
+- **It writes** `%LOCALAPPDATA%\BorisCodeStatus\` (state and preferences) and adds entries
+  to `~/.claude/settings.json`, after backing that file up once.
+- There is no telemetry, no analytics and no update check.
+
+---
+
+## How it works
 
 ```
- Claude Code ──stdin JSON──▶ FidoRelay.Hooks.exe ──writes──▶ %LOCALAPPDATA%\FidoRelay\state.json
+ Claude Code ──stdin JSON──▶ BorisCodeStatus.Hooks.exe ──writes──▶ %LOCALAPPDATA%\BorisCodeStatus\state.json
   (statusLine +                (runs once per event,                          │
    lifecycle hooks)             then exits)                                   │ FileSystemWatcher
                                                                               ▼
-                                            FidoRelay.Tray.exe ── hosts ──▶ GET /status  ◀── ESP32
+                                            BorisCodeStatus.Tray.exe ── hosts ──▶ GET /status  ◀── ESP32
                                              (tray icon + in-process API)         :5080
 ```
 
@@ -107,14 +161,14 @@ API call.
 
 | Project | Target | Role |
 |---|---|---|
-| `FidoRelay.Core` | `net10.0` | Models, state store, settings merger, usage API client |
-| `FidoRelay.Core.Tests` | `net10.0-windows` | 114 unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences, firewall port matching |
-| `FidoRelay.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
-| `FidoRelay.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
-| `FidoRelay.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
-| `FidoRelay.Installer` | WiX v4 | Produces `FidoRelay.msi` |
+| `BorisCodeStatus.Core` | `net10.0` | Models, state store, settings merger, usage API client |
+| `BorisCodeStatus.Core.Tests` | `net10.0-windows` | Unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences, firewall port matching |
+| `BorisCodeStatus.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
+| `BorisCodeStatus.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
+| `BorisCodeStatus.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
+| `BorisCodeStatus.Installer` | WiX v4 | Produces `BorisCodeStatus.msi` |
 
-`FidoRelay.Api` is a library, not an executable: the tray app starts its `WebApplication`
+`BorisCodeStatus.Api` is a library, not an executable: the tray app starts its `WebApplication`
 in-process so there is one process to install, run and tray-manage. It stays a separate project so
 the endpoint can be built and tested independently of the WinForms host.
 
@@ -128,7 +182,7 @@ GET http://<host>:5080/health
 ```
 
 Bound to `0.0.0.0` so the ESP32 can reach it across the LAN. Port is overridable with the
-`FIDORELAY_PORT` environment variable. CORS allows all origins.
+`BORISCODESTATUS_PORT` environment variable. CORS allows all origins.
 
 ```json
 {
@@ -138,7 +192,7 @@ Bound to `0.0.0.0` so the ESP32 can reach it across the LAN. Port is overridable
   "context_used_percentage": 37.5,
   "model_display_name": "Opus 5",
   "session_id": "abc-123",
-  "session_name": "fido relay",
+  "session_name": "boris code status",
   "session_cost_usd": 1.2345,
   "session_duration_ms": 843000,
   "month_cost_usd": null,
@@ -177,13 +231,13 @@ checked in a one-line middleware, with the token stored next to `state.json`.
 ## Install
 
 ```
-FidoRelay.msi
+BorisCodeStatus.msi
 ```
 
 **No administrator rights are required**, by design:
 
 - per-user MSI (`Scope="perUser"`, no `ALLUSERS`) — no UAC prompt
-- installs to `%LOCALAPPDATA%\Programs\FidoRelay` — not `Program Files`
+- installs to `%LOCALAPPDATA%\Programs\BorisCodeStatus` — not `Program Files`
 - starts at login via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 - no Windows service, no scheduled task
 - Kestrel binds `0.0.0.0:5080` with a plain socket, so no `netsh http add urlacl` reservation is
@@ -205,8 +259,7 @@ do — Windows does not simply skip the rule: it **creates `Block` rules** for t
 **Upgrading does not cost you this again.** Firewall rules key on the executable's *path*, not its
 contents, so replacing the binary in place leaves them matching; `ShowFirstRunNoticeIfNeeded` and
 the warning balloon both stop early once `Detect()` returns `Allowed`. A prompt only reappears if
-the path itself changes — as it did in the rename from ClaudeVitals, which is why that upgrade
-asked once and no later one has.
+the path itself changes.
 
 `Detect()` recognises **both shapes of rule**: one naming this executable, as approving Windows'
 own prompt creates, and one naming no application but opening our TCP port, as
@@ -230,7 +283,7 @@ Check the actual state before trusting it:
 
 ```powershell
 Get-NetConnectionProfile | Select-Object InterfaceAlias, NetworkCategory
-Get-NetFirewallRule -Direction Inbound | Where-Object DisplayName -like "*FidoRelay*" |
+Get-NetFirewallRule -Direction Inbound | Where-Object DisplayName -like "*BorisCodeStatus*" |
   Select-Object DisplayName, Action, Profile
 ```
 
@@ -250,15 +303,15 @@ The manual equivalent, for an administrator fixing it once per machine:
 ```powershell
 # 1. Remove any Block rules left behind by a dismissed prompt
 Get-NetFirewallRule -Direction Inbound -Action Block |
-  Where-Object { $_.DisplayName -like "*FidoRelay*" -or $_.DisplayName -like "fidorelay*" } |
+  Where-Object { $_.DisplayName -like "*BorisCodeStatus*" -or $_.DisplayName -like "boriscodestatus*" } |
   Remove-NetFirewallRule
 
 # 2. Mark the network Private, if it is genuinely a home or office LAN
 Set-NetConnectionProfile -InterfaceAlias "Wi-Fi" -NetworkCategory Private
 
 # 3. Allow the relay on that profile only
-New-NetFirewallRule -DisplayName "FidoRelay" -Direction Inbound `
-  -Program "$env:LOCALAPPDATA\Programs\FidoRelay\FidoRelay.Tray.exe" `
+New-NetFirewallRule -DisplayName "BorisCodeStatus" -Direction Inbound `
+  -Program "$env:LOCALAPPDATA\Programs\BorisCodeStatus\BorisCodeStatus.Tray.exe" `
   -Protocol TCP -LocalPort 5080 -Profile Private -Action Allow
 ```
 
@@ -283,7 +336,7 @@ during installation from the user's point of view.
 
 **`settings.json` is read-modify-written as a JSON tree, never regenerated.** Unrelated
 configuration (permissions, theme, env, other hooks) is preserved, the original is backed up once
-to `settings.json.fidorelay.bak`, and an unparseable file is left completely untouched.
+to `settings.json.boriscodestatus.bak`, and an unparseable file is left completely untouched.
 
 **An existing third-party `statusLine` is never overwritten.** If one is present the app leaves it
 alone and warns instead — remove the `statusLine` entry from `settings.json` by hand to switch over.
@@ -295,7 +348,7 @@ Registered entries:
 {
   "statusLine": {
     "type": "command",
-    "command": "\"%LOCALAPPDATA%\\Programs\\FidoRelay\\FidoRelay.Hooks.exe\" statusline"
+    "command": "\"%LOCALAPPDATA%\\Programs\\BorisCodeStatus\\BorisCodeStatus.Hooks.exe\" statusline"
   },
   "hooks": {
     "Notification":     [{ "hooks": [{ "type": "command", "command": "\"...\" notification" }] }],
@@ -336,7 +389,7 @@ on a 32px canvas; grow either and the ring clips the ears and the accent block. 
 
 ### The application icon
 
-Separate from the tray glyph, `FidoRelay.Tray/fido.ico` is what Explorer, the Start Menu, Alt-Tab
+Separate from the tray glyph, `BorisCodeStatus.Tray/fido.ico` is what Explorer, the Start Menu, Alt-Tab
 and Installed Apps show. It is the one committed binary in the project: the toolchain's
 `ApplicationIcon` takes a file path, not pixel data, so the `DogSprites` approach does not apply.
 
@@ -354,10 +407,10 @@ fall asleep — nothing writes to the state file while a session is idle, so wit
 own the icon would sit awake indefinitely. It re-renders only when the pose or the quota bucket
 actually changes.
 
-The pose rule lives in `FidoRelay.Core` (`DogStates.For`) rather than in the tray, so the ESP32
+The pose rule lives in `BorisCodeStatus.Core` (`DogStates.For`) rather than in the tray, so the ESP32
 display can derive the same pose from the same state instead of inventing its own mapping.
 
-Right-click menu: a **FidoRelay v1.2.3** header (the build version, stamped at compile time —
+Right-click menu: a **BorisCodeStatus v1.2.3** header (the build version, stamped at compile time —
 clicking it opens the GitHub repository), then the current session and week figures
 (display-only), then **Advanced** and **Exit**. The actions live under **Advanced** — **Notify
 when waiting**, **Pause HTTP service**, **Open in Browser** (opens `/status`), **Re-register
@@ -415,7 +468,7 @@ would have to learn about. Verified on both loopback and the LAN address.
 
 **The pause survives a restart**, including the automatic one at login — someone who switched the
 endpoint off did not mean "until I next log in". It is remembered as a marker file,
-`%LOCALAPPDATA%\FidoRelay\http-paused.flag`, rather than a field in `state.json`: that file is the
+`%LOCALAPPDATA%\BorisCodeStatus\http-paused.flag`, rather than a field in `state.json`: that file is the
 wire payload, rewritten constantly by the hook process, and a preference has no business being
 carried in it or exposed on `/status`. The file's existence is the whole flag, so there is nothing
 to parse and nothing that can corrupt into a confusing half-state. Delete it to un-pause without
@@ -456,7 +509,7 @@ dotnet tool install --global wix --version 4.0.5
 dotnet build -c Release
 ```
 
-A Release build of the solution produces `FidoRelay.Installer\bin\Release\FidoRelay.msi` as a
+A Release build of the solution produces `BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi` as a
 normal build output — no separate packaging step.
 
 > **WiX version:** pinned to **4.0.5**. WiX v7 requires accepting the Open Source Maintenance Fee
@@ -466,7 +519,7 @@ normal build output — no separate packaging step.
 Run the tests:
 
 ```bash
-dotnet test FidoRelay.Core.Tests
+dotnet test BorisCodeStatus.Core.Tests
 ```
 
 ### Continuous integration
@@ -545,15 +598,15 @@ dotnet build -c Release -p:Version=1.2.3
 
 ```bash
 echo '{"model":{"display_name":"Opus 5"},"rate_limits":{"five_hour":{"used_percentage":42}}}' \
-  | FidoRelay.Hooks.exe statusline
+  | BorisCodeStatus.Hooks.exe statusline
 
-echo '{"hook_event_name":"Notification"}' | FidoRelay.Hooks.exe notification
+echo '{"hook_event_name":"Notification"}' | BorisCodeStatus.Hooks.exe notification
 
-echo '{"hook_event_name":"SessionStart"}' | FidoRelay.Hooks.exe sessionstart
-echo '{"hook_event_name":"SessionEnd"}'   | FidoRelay.Hooks.exe sessionend
+echo '{"hook_event_name":"SessionStart"}' | BorisCodeStatus.Hooks.exe sessionstart
+echo '{"hook_event_name":"SessionEnd"}'   | BorisCodeStatus.Hooks.exe sessionend
 ```
 
-Then check `%LOCALAPPDATA%\FidoRelay\state.json`, or `curl http://localhost:5080/status` with the
+Then check `%LOCALAPPDATA%\BorisCodeStatus\state.json`, or `curl http://localhost:5080/status` with the
 tray running.
 
 ---
@@ -581,27 +634,70 @@ Reads share every file mode and swallow transient I/O errors.
   installed files and Start Menu shortcut are all removed cleanly, but the `statusLine` and `hooks`
   entries remain and will point at a missing executable. Claude Code tolerates this (the commands
   simply fail), but the entries should be removed by hand, or restored from
-  `settings.json.fidorelay.bak`. Automating this is a v1.1 item.
+  `settings.json.boriscodestatus.bak`. Automating this is a v1.1 item.
 - **`month_cost_usd` is always `null`.** See above — no data source provides it.
 - **`week_sonnet` depends on an undocumented endpoint** whose response shape is not contractual. The
   client tries several plausible property spellings and returns `null` rather than guessing wrong.
   It may simply never populate.
 - **No authentication on `/status`.** See the security note above.
 - **Running a development build can hijack your real `~/.claude/settings.json`.** The tray registers
-  whatever path it is currently running from. If `FidoRelay.Hooks.exe` happens to sit next to the
+  whatever path it is currently running from. If `BorisCodeStatus.Hooks.exe` happens to sit next to the
   tray exe in `bin\Debug\...` or `bin\Release\...`, that throwaway build path is written into your
   global settings — and once the directory is cleaned, every hook silently fails forever, because
   the hook process is deliberately built never to report errors. The symptom is `/status` returning
   `null` for everything with nothing logged anywhere. **This has happened in practice.** Check with:
   ```powershell
-  Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "FidoRelay.Hooks.exe"
+  Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "BorisCodeStatus.Hooks.exe"
   ```
   If the path points inside a `bin\` folder, reinstall the MSI or use **Re-register hooks** from the
   tray menu to repoint it. A fix — refusing to register from a `bin\`/`obj\` path, and warning when
   the registered path no longer exists — is a v1.1 item.
 - **The MSI has been installed and verified on a developer machine, not on a clean VM.** Confirmed
   on a real per-user install: `msiexec` exit code 0 with no UAC prompt, product registered and
-  uninstallable, files in `%LOCALAPPDATA%\Programs\FidoRelay`, HKCU Run key set, hooks
+  uninstallable, files in `%LOCALAPPDATA%\Programs\BorisCodeStatus`, HKCU Run key set, hooks
   re-registered to the install path automatically, and live session data served from `/status`.
-  What that install did *not* cover: a machine with no prior FidoRelay state, and the upgrade and
+  What that install did *not* cover: a machine with no prior BorisCodeStatus state, and the upgrade and
   uninstall paths. Those are still worth exercising on a fresh VM before distributing.
+- **Windows only.** The tray, the installer and the firewall handling are all Windows-specific.
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome. Before changing behaviour, read the
+[Design notes](#design-notes) and the conventions in [`CLAUDE.md`](CLAUDE.md) — several of them
+(the hook process never failing, derived values computed on read, `settings.json` never being
+regenerated) exist because the alternative broke something. Changes should keep this README
+current in the same pull request, and `dotnet test` must pass.
+
+By contributing you agree that your contribution is licensed under the same terms as the project.
+
+## License
+
+Copyright (C) 2026 Andrew Badge.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+**GNU General Public License** as published by the Free Software Foundation, either version 3 of
+the License, or (at your option) any later version. It is distributed in the hope that it will be
+useful, but **without any warranty**; without even the implied warranty of merchantability or
+fitness for a particular purpose. See [`LICENSE`](LICENSE) for the full text, which the installer
+also places beside the executables as `LICENSE.txt`.
+
+### Third-party components
+
+The MSI bundles components that are not covered by this project's license:
+
+| Component | License | Where |
+|---|---|---|
+| .NET runtime and ASP.NET Core | MIT | Self-contained in both executables |
+| WiX Toolset v4 utility custom action (`Wix4UtilCA`) | MS-RL | Inside the MSI, used to close and launch the tray during install |
+
+The WiX custom action runs only during installation and is not linked into the program. The test
+suite additionally uses xUnit (Apache 2.0) and coverlet (MIT) at build time; neither ships.
+
+## Trademarks
+
+"Claude" and "Claude Code" are trademarks of Anthropic, PBC. They are used here only to say which
+tool this project works with. This project is not affiliated with, endorsed by or sponsored by
+Anthropic, and it relies on an undocumented Anthropic endpoint that may change or stop working at
+any time.
