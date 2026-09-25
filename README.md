@@ -14,9 +14,9 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
   switch it on. The HTTP service is **off by default**.
 
 <p>
-  <img src="docs/images/tray-menu.png" alt="The tray menu, showing the status line, session and week quota figures, and the Settings and Advanced submenus" width="305">
+  <img src="docs/images/tray-menu.png" alt="The tray menu, showing the status line, session and week quota figures, and the Settings and Advanced submenus" width="307">
   &nbsp;
-  <img src="docs/images/waiting-card.png" alt="The waiting card: the pixel-art dog with the heading INPUT NEEDED and the text Claude is waiting for your input" width="355">
+  <img src="docs/images/waiting-card.png" alt="The waiting card: the pixel-art dog with the heading INPUT NEEDED and the text Claude is waiting for your input" width="354">
 </p>
 
 It runs as a per-user tray icon — no console window, no Windows service, no administrator rights
