@@ -5,7 +5,7 @@ namespace BorisCodeStatus.Core.Tests;
 
 /// <summary>
 /// Covers the notification setting and the waiting message the notification shows.
-/// The setting is on by default, so the marker file means "disabled" — the inverse of pause.
+/// The setting is on by default, so the marker file means "disabled" — the inverse of the HTTP preference, which is off by default.
 /// </summary>
 public class NotificationPreferenceTests : IDisposable
 {

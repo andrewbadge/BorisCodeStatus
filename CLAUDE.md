@@ -54,7 +54,7 @@ Claude Code ──stdin JSON──▶ BorisCodeStatus.Hooks.exe ──writes─�
 - **Hooks** — one `Exe` for every hook; the verb argument (`statusline`, `stop`, `sessionstart`, …)
   selects the behaviour. Registered in `ClaudeSettingsMerger.LifecycleHooks`.
 - **Api** — a *library*, not an executable. `VitalsApi` builds the `WebApplication`;
-  `VitalsApiHost` owns its lifetime so the tray can pause and resume the listener. A stopped
+  `VitalsApiHost` owns its lifetime so the tray can start and stop the listener. A stopped
   `WebApplication` cannot be restarted, so resuming builds a new one — that is why the host holds
   the options and store rather than the app.
 - **Tray** — WinForms host: owns the message loop, starts the API, draws the icon from live data,
@@ -89,8 +89,9 @@ hooks deliberately leave `activity` untouched.
 **Tray preferences are marker files, not `state.json` fields** (`FlagPreference`, in `Core/State`).
 `state.json` is the wire payload the hook process rewrites constantly; a preference does not belong
 in it or on `/status`. The file always marks the **non-default** setting, so a missing or unreadable
-preference yields the default and there is no first-run write — hence `http-paused.flag` (default
-running) and `notifications-disabled.flag` (default on).
+preference yields the default and there is no first-run write — hence `http-enabled.flag` (default
+off, because `/status` is unauthenticated and LAN-wide) and `notifications-disabled.flag` (default
+on). Both live under the tray's **Settings** submenu; **Advanced** is for one-off actions and repairs.
 
 **`Refresh` runs on every state write *and* every pose-timer tick.** Anything with a side effect —
 a notification, a balloon — must fire on a transition, keyed off `activity_changed_utc`, not on

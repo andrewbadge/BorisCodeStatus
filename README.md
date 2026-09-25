@@ -8,7 +8,8 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
 - A pixel-art dog in the tray changes pose with Claude's state; a ring around it shows the
   five-hour quota used.
 - A notification card pops up when Claude is waiting on you, so a permission prompt is not missed.
-- `GET /status` on port 5080 returns the whole picture as JSON for any device on the LAN.
+- `GET /status` on port 5080 returns the whole picture as JSON for any device on the LAN — once you
+  switch it on. The HTTP service is **off by default**.
 
 It runs as a per-user tray icon — no console window, no Windows service, no administrator rights
 to install.
@@ -27,9 +28,12 @@ subscription login — Claude Code omits `rate_limits` on API-key sessions, so t
 2. The tray icon appears and registers its hooks in `~/.claude/settings.json` (see
    [Hook registration](#hook-registration-first-run-logic-not-an-msi-custom-action) for exactly
    what it writes, and what it refuses to overwrite).
-3. If you want another device to reach it, **allow the Windows Firewall prompt** — this is the one
-   step that needs an administrator. See [Windows Firewall](#the-one-place-admin-can-appear-windows-firewall).
-4. Check it: `curl http://localhost:5080/status`.
+3. To serve `/status`, right-click the tray icon and choose **Settings → Enable HTTP service**. It is
+   off by default, so a fresh install opens no port until you ask it to. See
+   [The HTTP service](#the-http-service-off-by-default).
+4. If you want another device to reach it, **allow the Windows Firewall prompt** that follows — this
+   is the one step that needs an administrator. See [Windows Firewall](#the-one-place-admin-can-appear-windows-firewall).
+5. Check it: `curl http://localhost:5080/status`.
 
 The display firmware is a separate project and is not part of this repository. Anything that can
 make an HTTP `GET` and parse JSON can consume `/status`.
@@ -45,10 +49,12 @@ Worth knowing before you install anything that hooks into Claude Code:
   project files.
 - **It reads your Claude Code OAuth token** from `~/.claude/.credentials.json`, for one purpose:
   calling `https://api.anthropic.com/api/oauth/usage` — the same account the token belongs to — at
-  most once every 5 minutes, to fetch the one figure the hooks do not supply. The token is sent
-  nowhere else and is never written anywhere by this app. See [data source 3](#3-apioauthusage--fallback-only).
-- **It serves** the fields shown in the [`/status` sample](#the-status-endpoint) to anything on your
-  LAN, **without authentication**. That includes session names and cost. Read the
+  most once every 5 minutes, to fetch the one figure the hooks do not supply, and only while the
+  HTTP service is switched on. The token is sent nowhere else and is never written anywhere by
+  this app. See [data source 3](#3-apioauthusage--fallback-only).
+- **It serves**, once you switch the HTTP service on (it is off by default), the fields shown in
+  the [`/status` sample](#the-status-endpoint) to anything on your LAN, **without
+  authentication**. That includes session names and cost. Read the
   security note under [The `/status` endpoint](#the-status-endpoint) before using it on a network you do
   not trust.
 - **It writes** `%LOCALAPPDATA%\BorisCodeStatus\` (state and preferences) and adds entries
@@ -162,7 +168,7 @@ API call.
 | Project | Target | Role |
 |---|---|---|
 | `BorisCodeStatus.Core` | `net10.0` | Models, state store, settings merger, usage API client |
-| `BorisCodeStatus.Core.Tests` | `net10.0-windows` | Unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences, firewall port matching |
+| `BorisCodeStatus.Core.Tests` | `net10.0-windows` | Unit tests over parsing, state, merging, throttling, dog poses, starting/stopping the listener, preferences, firewall port matching |
 | `BorisCodeStatus.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
 | `BorisCodeStatus.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
 | `BorisCodeStatus.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
@@ -240,8 +246,8 @@ BorisCodeStatus.msi
 - installs to `%LOCALAPPDATA%\Programs\BorisCodeStatus` — not `Program Files`
 - starts at login via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 - no Windows service, no scheduled task
-- Kestrel binds `0.0.0.0:5080` with a plain socket, so no `netsh http add urlacl` reservation is
-  needed (that is only required for http.sys / `HttpListener`)
+- once the HTTP service is switched on, Kestrel binds `0.0.0.0:5080` with a plain socket, so no
+  `netsh http add urlacl` reservation is needed (that is only required for http.sys / `HttpListener`)
 
 Both executables ship self-contained, so the target machine needs no .NET runtime installed. That
 is why the MSI is ~75 MB.
@@ -251,7 +257,8 @@ is why the MSI is ~75 MB.
 Installing needs no admin rights. **Reaching the endpoint from the ESP32 usually does**, and this
 is the step most likely to catch you out. It has been hit in practice on a real install.
 
-The first time Kestrel binds a non-loopback address, Windows shows a firewall prompt. Approving it
+The first time Kestrel binds a non-loopback address — that is, the first time you enable the HTTP
+service — Windows shows a firewall prompt. Approving it
 requires administrator rights. If a non-admin user dismisses or cancels it — which is all they can
 do — Windows does not simply skip the rule: it **creates `Block` rules** for that executable.
 `/status` then still works from `localhost`, but the ESP32 is refused.
@@ -411,10 +418,13 @@ The pose rule lives in `BorisCodeStatus.Core` (`DogStates.For`) rather than in t
 display can derive the same pose from the same state instead of inventing its own mapping.
 
 Right-click menu: a **BorisCodeStatus v1.2.3** header (the build version, stamped at compile time —
-clicking it opens the GitHub repository), then the current session and week figures
-(display-only), then **Advanced** and **Exit**. The actions live under **Advanced** — **Notify
-when waiting**, **Pause HTTP service**, **Open in Browser** (opens `/status`), **Re-register
-hooks**, **Fix firewall access…** — so the top level is only what you came to read.
+clicking it opens the GitHub repository), then a status line and the current session and week
+figures (display-only), then **Settings**, **Advanced** and **Exit**. The status line reads like
+*Status: Idle · HTTP off · notify on* — the activity plus both settings, since neither setting is
+visible anywhere else. **Settings** holds the two persisted preferences — **Notify when waiting**
+and **Enable HTTP service**, each ticked when on. **Advanced** holds one-off actions and repairs —
+**Open in Browser** (opens `/status`), **Re-register hooks**, **Fix firewall access…** — so the
+top level is only what you came to read.
 Double-clicking the icon still opens `/status`, keeping a shortcut on the common action.
 
 ### Notification when Claude is waiting for you
@@ -444,50 +454,63 @@ layout belongs to Windows, so none of that is possible there. Details worth know
   font is a 5×7 bitmap font kept as data in `PixelFont`. Both are drawn at a whole number of
   device pixels per design pixel, so they stay crisp at any DPI; the rest of the layout scales.
 - It appears bottom-right of the **primary** monitor's working area, which is beside the tray for
-  a bottom taskbar. The other tray messages (firewall, pause, re-register) are still balloons.
+  a bottom taskbar. The other tray messages (firewall, HTTP on/off, re-register) are still balloons.
 
 It fires **on the transition only**. `Refresh` runs on every state write and every pose-timer
 tick, so notifying on "is currently Waiting" would repeat the same prompt indefinitely; it is
 keyed off `activity_changed_utc` instead, giving one notification per wait, while a second prompt
 in the same session still gets its own because the timestamp moves.
 
-**Advanced → Notify when waiting** turns it off. It is **on by default**, which is why the marker
+**Settings → Notify when waiting** turns it off. It is **on by default**, which is why the marker
 file records the *disabled* state (`notifications-disabled.flag`) — that way a missing or
 unreadable preference gives the default, and there is no first-run write. The setting is read at
 the moment of use, so it takes effect immediately rather than at the next restart, and like the
-pause it survives one.
+HTTP setting it survives one.
 
-### Pausing the HTTP service
+### The HTTP service (off by default)
 
-**Pause HTTP service** stops the listener while everything else keeps running: the tray stays up,
-the hooks keep recording, and `state.json` keeps being written. Only the endpoint goes away.
+**The HTTP service is off until you switch it on** with **Settings → Enable HTTP service**. The
+endpoint is unauthenticated and serves session names and cost to the whole LAN, so a fresh install
+should not open a port nobody asked for. Everything else works with it off: the tray icon, the
+waiting notification, the hooks and `state.json`. Only the endpoint (and the usage-API polling
+that feeds it — see below) waits for you.
 
-It releases the TCP port rather than answering with an error status, so a client gets
-`ConnectionRefused` — the "relay down" case the display already handles — instead of a 503 it
-would have to learn about. Verified on both loopback and the LAN address.
+Turning it off stops the listener while everything else keeps running. It releases the TCP port
+rather than answering with an error status, so a client gets `ConnectionRefused` — the "relay
+down" case the display already handles — instead of a 503 it would have to learn about. Verified on
+both loopback and the LAN address.
 
-**The pause survives a restart**, including the automatic one at login — someone who switched the
-endpoint off did not mean "until I next log in". It is remembered as a marker file,
-`%LOCALAPPDATA%\BorisCodeStatus\http-paused.flag`, rather than a field in `state.json`: that file is the
-wire payload, rewritten constantly by the hook process, and a preference has no business being
-carried in it or exposed on `/status`. The file's existence is the whole flag, so there is nothing
-to parse and nothing that can corrupt into a confusing half-state. Delete it to un-pause without
-the menu.
+**The choice survives a restart**, including the automatic one at login. It is remembered as a
+marker file, `%LOCALAPPDATA%\BorisCodeStatus\http-enabled.flag`, rather than a field in
+`state.json`: that file is the wire payload, rewritten constantly by the hook process, and a
+preference has no business being carried in it or exposed on `/status`. As with every tray
+preference, the file marks the non-default setting — here *enabled* — so a missing or unreadable
+file leaves the endpoint closed. Delete it to switch the service off without the menu.
 
-Because a pause is otherwise invisible from outside, the menu item shows a tick while paused and
-both the status line and the tray tooltip read **HTTP paused**. If the preference cannot be
-written, the pause still takes effect and the balloon says it will not survive a restart.
+**Upgrading from an earlier version switches the service off.** Earlier versions defaulted to on
+and recorded a pause as `http-paused.flag`; that file is now ignored. Enable the service once from
+the menu after upgrading and it stays on.
 
-**Pausing needs no elevation.** This is a per-user app with no service and no admin rights
+The firewall notice described under [Windows Firewall](#the-one-place-admin-can-appear-windows-firewall)
+is shown the first time you enable the service, just before it binds, and the firewall check runs
+then too — neither appears while the service is off, since there is nothing to block.
+
+Because the service's state is otherwise invisible from outside, the menu item is ticked while it
+is on, the status line reads **HTTP on** or **HTTP off**, and the tray tooltip reads
+**HTTP off** while it is off. If the preference cannot be written, the change still takes effect
+and the balloon says it will not survive a restart.
+
+**Toggling needs no elevation.** This is a per-user app with no service and no admin rights
 anywhere in its design, and gating a local toggle behind UAC would be both out of keeping and
 pointless — anyone who can run the tray can also close it.
 
-**Usage-API polling stops too.** `UsageApiRefreshService` is a hosted service inside the same app,
-so pausing stops it. That is intended: a paused relay should be doing nothing at all.
+**Usage-API polling only runs while it is on.** `UsageApiRefreshService` is a hosted service inside
+the same app, so it starts and stops with the listener. That is intended: with the service off
+the relay should be doing nothing at all.
 
-Resuming builds a fresh listener — a stopped `WebApplication` cannot be restarted, which is why
-`VitalsApiHost` holds the options and store rather than the app. If something else took the port
-while you were paused, resuming fails with a balloon rather than silently staying down.
+Enabling after a stop builds a fresh listener — a stopped `WebApplication` cannot be restarted,
+which is why `VitalsApiHost` holds the options and store rather than the app. If something else
+holds the port, enabling fails with a balloon rather than silently staying down.
 
 > **Start and Stop must never capture a `SynchronizationContext`.** Both bridge async work
 > synchronously, and doing that directly on the UI thread deadlocks the tray outright: the
@@ -607,7 +630,7 @@ echo '{"hook_event_name":"SessionEnd"}'   | BorisCodeStatus.Hooks.exe sessionend
 ```
 
 Then check `%LOCALAPPDATA%\BorisCodeStatus\state.json`, or `curl http://localhost:5080/status` with the
-tray running.
+tray running and the HTTP service enabled.
 
 ---
 
