@@ -38,10 +38,10 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -131,7 +131,7 @@ jobs:
           Write-Host "MSI verified: version $actual, $($files.Count) files, per-user scope"
 
       - name: Upload MSI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: BorisCodeStatus-${{ steps.version.outputs.version }}-msi
           path: BorisCodeStatus.Installer/bin/Release/BorisCodeStatus.msi
