@@ -26,7 +26,8 @@ public sealed record VitalsState
 
     /// <summary>
     /// Seven-day quota for the Sonnet-only pool. Not present in statusLine data — populated
-    /// only from the fallback OAuth usage endpoint, so it may lag or stay null.
+    /// only from the fallback OAuth usage endpoint, so it may lag or stay null, and is always
+    /// null unless the user has switched that fallback on.
     /// </summary>
     [JsonPropertyName("week_sonnet")]
     public RateLimitWindow? WeekSonnet { get; init; }
@@ -129,6 +130,14 @@ public sealed record VitalsState
     /// <summary>When the fallback usage API last succeeded, for diagnostics.</summary>
     [JsonPropertyName("usage_api_last_success_utc")]
     public DateTimeOffset? UsageApiLastSuccessUtc { get; init; }
+
+    /// <summary>
+    /// This state with the fields only the usage-API fallback fills set to null — what
+    /// <c>/status</c> serves while that fallback is switched off, so a value fetched before it
+    /// was disabled is never passed off as current.
+    /// </summary>
+    public VitalsState WithoutUsageApiFields() =>
+        this with { WeekSonnet = null, UsageApiLastSuccessUtc = null };
 
     /// <summary>Seconds since <see cref="LastUpdatedUtc"/>, so the ESP32 can grey out stale data.</summary>
     [JsonPropertyName("age_seconds")]

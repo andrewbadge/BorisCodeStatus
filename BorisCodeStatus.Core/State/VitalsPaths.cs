@@ -21,6 +21,12 @@ public static class VitalsPaths
     public static string HttpEnabledFlagFile => Path.Combine(DataDirectory, "http-enabled.flag");
 
     /// <summary>
+    /// Present when the user has allowed the usage-API fallback. Marks the non-default setting,
+    /// since the fallback is off out of the box.
+    /// </summary>
+    public static string UsageApiEnabledFlagFile => Path.Combine(DataDirectory, "usage-api-enabled.flag");
+
+    /// <summary>
     /// Present when the user has turned notifications off. Marks the non-default setting, since
     /// notifications are on out of the box.
     /// </summary>

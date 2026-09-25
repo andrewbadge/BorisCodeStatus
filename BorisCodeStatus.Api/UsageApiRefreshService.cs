@@ -12,6 +12,9 @@ namespace BorisCodeStatus.Api;
 /// client applies its own cross-process throttle and 429 back-off on top. Everything about this
 /// service is best-effort: a failed poll leaves the previous value in place and is not logged as
 /// an error, because the endpoint being unavailable is an expected state, not a fault.
+///
+/// It only calls out when the user has opted in (<see cref="UsageApiPreference"/>); otherwise
+/// each tick is a file-existence check and nothing more.
 /// </summary>
 internal sealed class UsageApiRefreshService : BackgroundService
 {
@@ -47,8 +50,17 @@ internal sealed class UsageApiRefreshService : BackgroundService
 
     private async Task RefreshAsync(UsageApiClient client, CancellationToken cancellationToken)
     {
+        // Checked on every tick rather than once at startup, so the tray can switch the fallback
+        // on or off without rebuilding the listener. Off means no token read and no network call.
+        if (!UsageApiPreference.IsEnabled())
+        {
+            return;
+        }
+
         var sonnetWeek = await client.TryGetSonnetWeekAsync(cancellationToken).ConfigureAwait(false);
-        if (sonnetWeek is null)
+        // Checked again after the call: the user may have switched it off while the request was in
+        // flight, and the tray has already cleared the fields — writing now would put them back.
+        if (sonnetWeek is null || !UsageApiPreference.IsEnabled())
         {
             return;
         }
