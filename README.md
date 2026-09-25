@@ -1,5 +1,7 @@
 # BorisCodeStatus
 
+<a href="https://buymeacoffee.com/andrewbadge"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="60" width="217"></a>
+
 A small Windows tray app that shows what [Claude Code](https://docs.claude.com/en/docs/claude-code)
 is doing — working, idle, or waiting for your permission — and how much of your usage quota is
 left, and serves the same data over HTTP on your local network so a physical display (an
@@ -10,6 +12,12 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
 - A notification card pops up when Claude is waiting on you, so a permission prompt is not missed.
 - `GET /status` on port 5080 returns the whole picture as JSON for any device on the LAN — once you
   switch it on. The HTTP service is **off by default**.
+
+<p>
+  <img src="docs/images/tray-menu.png" alt="The tray menu, showing the status line, session and week quota figures, and the Settings and Advanced submenus" width="307">
+  &nbsp;
+  <img src="docs/images/waiting-card.png" alt="The waiting card: the pixel-art dog with the heading INPUT NEEDED and the text Claude is waiting for your input" width="354">
+</p>
 
 It runs as a per-user tray icon — no console window, no Windows service, no administrator rights
 to install.
