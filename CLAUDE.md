@@ -91,7 +91,9 @@ hooks deliberately leave `activity` untouched.
 in it or on `/status`. The file always marks the **non-default** setting, so a missing or unreadable
 preference yields the default and there is no first-run write — hence `http-enabled.flag` (default
 off, because `/status` is unauthenticated and LAN-wide) and `notifications-disabled.flag` (default
-on). Both live under the tray's **Settings** submenu; **Advanced** is for one-off actions and repairs.
+on), and `usage-api-enabled.flag` (default off — the only outbound call and the only reader of the
+OAuth token must be opted into). All live under the tray's **Settings** submenu; **Advanced** is for
+one-off actions and repairs.
 
 **`Refresh` runs on every state write *and* every pose-timer tick.** Anything with a side effect —
 a notification, a balloon — must fire on a transition, keyed off `activity_changed_utc`, not on
@@ -102,7 +104,7 @@ read-modify-writes a JSON tree, backs the file up once, leaves a third-party `st
 a warning rather than clobbering it, and refuses to touch a file it cannot parse.
 
 **Comments explain why, not what,** and openly record what is unverified — the `/api/oauth/usage`
-fallback is undocumented and best-effort, `month_cost_usd` has no data source and is always null.
+fallback is undocumented, best-effort and opt-in, `month_cost_usd` has no data source and is always null.
 Match that register; the existing XML doc comments are the house style.
 
 ## Traps

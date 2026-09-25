@@ -55,11 +55,13 @@ Worth knowing before you install anything that hooks into Claude Code:
   each hook its whole payload — for `UserPromptSubmit` that includes your prompt — but the hook
   deserialises only those fields and discards the rest unread. It never opens your transcripts or
   project files.
-- **It reads your Claude Code OAuth token** from `~/.claude/.credentials.json`, for one purpose:
-  calling `https://api.anthropic.com/api/oauth/usage` — the same account the token belongs to — at
-  most once every 5 minutes, to fetch the one figure the hooks do not supply, and only while the
-  HTTP service is switched on. The token is sent nowhere else and is never written anywhere by
-  this app. See [data source 3](#3-apioauthusage--fallback-only).
+- **Out of the box it makes no network calls at all.** The only outbound call it can make is
+  opt-in: with **Settings → Use usage API for Sonnet quota** ticked (off by default) and the HTTP
+  service on, it **reads your Claude Code OAuth token** from `~/.claude/.credentials.json` for one
+  purpose — calling `https://api.anthropic.com/api/oauth/usage`, the same account the token belongs
+  to, at most once every 5 minutes, to fetch the one figure the hooks do not supply. The token is
+  sent nowhere else and is never written anywhere by this app. With the setting off, the token file
+  is never opened. See [data source 3](#3-apioauthusage--opt-in-fallback).
 - **It serves**, once you switch the HTTP service on (it is off by default), the fields shown in
   the [`/status` sample](#the-status-endpoint) to anything on your LAN, **without
   authentication**. That includes session names and cost. Read the
@@ -148,10 +150,25 @@ hooks — so `Active` holds through a normal conversation. The 15-minute timeout
 (`VitalsState.SessionIdleTimeout`) is deliberately generous: flapping between `Active` and
 `Inactive` while the user reads a long reply would be worse than reacting slowly.
 
-### 3. `/api/oauth/usage` — fallback only
+### 3. `/api/oauth/usage` — opt-in fallback
 
 An **undocumented** Anthropic endpoint, used only for the one figure hooks cannot supply: the
 Sonnet-only weekly split (`week_sonnet`).
+
+**It is off by default.** Tick **Settings → Use usage API for Sonnet quota** to allow it. It is the
+only part of the app that reads the OAuth token or talks to the network, for a figure most displays
+do not show, from an endpoint that is not a contract — so it should be chosen, not assumed. The
+preference is a marker file, `%LOCALAPPDATA%\BorisCodeStatus\usage-api-enabled.flag`, marking the
+non-default *enabled* setting like every tray preference.
+
+While it is off, `/status` serves `week_sonnet` and `usage_api_last_success_utc` as `null`, and
+switching it off also clears any values already fetched from `state.json`. The poller and the
+endpoint both read the preference each time, so toggling it needs no restart; after switching it
+on, the first fetch happens at the next poll, within 10 minutes. It only ever runs while the HTTP
+service is on, since `/status` is the only thing that uses the figure.
+
+**Upgrading from 1.1 or earlier switches it off.** Earlier versions polled whenever the HTTP service
+was running; tick the setting once to carry on.
 
 It rate-limits aggressively and stays limited for an extended period once tripped, so:
 
@@ -434,8 +451,8 @@ Right-click menu: a **BorisCodeStatus v1.2.3** header (the build version, stampe
 clicking it opens the GitHub repository), then a status line and the current session and week
 figures (display-only), then **Settings**, **Advanced** and **Exit**. The status line reads like
 *Status: Idle · HTTP off · notify on* — the activity plus both settings, since neither setting is
-visible anywhere else. **Settings** holds the two persisted preferences — **Notify when waiting**
-and **Enable HTTP service**, each ticked when on. **Advanced** holds one-off actions and repairs —
+visible anywhere else. **Settings** holds the persisted preferences — **Notify when waiting**,
+**Enable HTTP service** and **Use usage API for Sonnet quota**, each ticked when on. **Advanced** holds one-off actions and repairs —
 **Open in Browser** (opens `/status`), **Re-register hooks**, **Fix firewall access…** — so the
 top level is only what you came to read.
 Double-clicking the icon still opens `/status`, keeping a shortcut on the common action.
@@ -518,9 +535,10 @@ it will not survive a restart.
 anywhere in its design, and gating a local toggle behind UAC would be both out of keeping and
 pointless — anyone who can run the tray can also close it.
 
-**Usage-API polling only runs while it is on.** `UsageApiRefreshService` is a hosted service inside
-the same app, so it starts and stops with the listener. That is intended: with the service off
-the relay should be doing nothing at all.
+**Usage-API polling only runs while it is on** — and then only if you have also opted in to it (see
+[data source 3](#3-apioauthusage--opt-in-fallback)). `UsageApiRefreshService` is a hosted service
+inside the same app, so it starts and stops with the listener. That is intended: with the service
+off the relay should be doing nothing at all.
 
 Enabling after a stop builds a fresh listener — a stopped `WebApplication` cannot be restarted,
 which is why `VitalsApiHost` holds the options and store rather than the app. If something else
@@ -673,9 +691,9 @@ Reads share every file mode and swallow transient I/O errors.
   simply fail), but the entries should be removed by hand, or restored from
   `settings.json.boriscodestatus.bak`. Automating this is a v1.1 item.
 - **`month_cost_usd` is always `null`.** See above — no data source provides it.
-- **`week_sonnet` depends on an undocumented endpoint** whose response shape is not contractual. The
-  client tries several plausible property spellings and returns `null` rather than guessing wrong.
-  It may simply never populate.
+- **`week_sonnet` is `null` unless you opt in to the usage API**, and even then depends on an
+  undocumented endpoint whose response shape is not contractual. The client tries several plausible
+  property spellings and returns `null` rather than guessing wrong. It may simply never populate.
 - **No authentication on `/status`.** See the security note above.
 - **Running a development build can hijack your real `~/.claude/settings.json`.** The tray registers
   whatever path it is currently running from. If `BorisCodeStatus.Hooks.exe` happens to sit next to the

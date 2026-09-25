@@ -21,7 +21,11 @@ public sealed record VitalsApiOptions
     /// </summary>
     public string BindAddress { get; init; } = "0.0.0.0";
 
-    /// <summary>Whether to poll the undocumented usage API for the Sonnet-only weekly split.</summary>
+    /// <summary>
+    /// Whether to host the poller for the undocumented usage API at all. Even when hosted it only
+    /// calls out if the user has opted in via <see cref="UsageApiPreference"/>; this switch exists
+    /// so tests can leave the poller out entirely.
+    /// </summary>
     public bool EnableUsageApiFallback { get; init; } = true;
 
     public static VitalsApiOptions FromEnvironment()
@@ -67,7 +71,10 @@ public static class VitalsApi
 
         // The one route that matters. Current re-reads state.json if the hook process has written
         // since the last call, so the response is always as fresh as the last hook event.
-        app.MapGet("/status", (VitalsStateStore state) => Results.Json(state.Current));
+        // With the usage-API fallback off, its fields are nulled here rather than trusted to be
+        // absent from the file: state.json may still hold a value fetched before it was disabled.
+        app.MapGet("/status", (VitalsStateStore state) => Results.Json(
+            UsageApiPreference.IsEnabled() ? state.Current : state.Current.WithoutUsageApiFields()));
 
         // Cheap liveness probe so the display can distinguish "relay down" from "no data yet".
         app.MapGet("/health", () => Results.Json(new { ok = true, utc = DateTimeOffset.UtcNow }));

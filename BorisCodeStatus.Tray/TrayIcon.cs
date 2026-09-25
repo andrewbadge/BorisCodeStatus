@@ -24,6 +24,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly VitalsApiHost _api;
     private readonly ToolStripMenuItem _httpItem;
     private readonly ToolStripMenuItem _notificationsItem;
+    private readonly ToolStripMenuItem _usageApiItem;
     private readonly ToolStripMenuItem _firewallItem;
     private readonly int _port;
     private readonly SynchronizationContext _uiContext;
@@ -84,6 +85,14 @@ internal sealed class TrayIcon : IDisposable
             CheckOnClick = false,
         };
 
+        // Off by default — see UsageApiPreference. Only feeds /status, so it has no effect while
+        // the HTTP service is off, but it stays clickable: choosing it up front is reasonable.
+        _usageApiItem = new ToolStripMenuItem("Use usage API for Sonnet quota", null, (_, _) => ToggleUsageApi())
+        {
+            Checked = UsageApiPreference.IsEnabled(),
+            CheckOnClick = false,
+        };
+
         // Everything actionable sits in a submenu: the top level is then purely the current
         // figures, which is what someone opening the menu is almost always here to read.
         // Settings holds the persisted preferences; Advanced holds one-off actions and repairs.
@@ -91,6 +100,7 @@ internal sealed class TrayIcon : IDisposable
         var settings = new ToolStripMenuItem("Settings");
         settings.DropDownItems.Add(_notificationsItem);
         settings.DropDownItems.Add(_httpItem);
+        settings.DropDownItems.Add(_usageApiItem);
 
         var advanced = new ToolStripMenuItem("Advanced");
         advanced.DropDownItems.Add(new ToolStripMenuItem("Open in Browser", null, (_, _) => OpenDashboard()));
@@ -458,6 +468,33 @@ internal sealed class TrayIcon : IDisposable
                 "Notifications on",
                 "You will see this card whenever Claude is waiting for you.",
                 Hint: null));
+        }
+    }
+
+    /// <summary>
+    /// Allows or stops the usage-API fallback. The poller and <c>/status</c> both read the
+    /// preference each time, so there is nothing to restart — the next poll simply calls out or
+    /// does not. Switching off also clears what it fetched from <c>state.json</c>: the endpoint
+    /// already hides those fields, but a value the user has opted out of should not linger on disk.
+    /// </summary>
+    private void ToggleUsageApi()
+    {
+        var enabled = !_usageApiItem.Checked;
+        _usageApiItem.Checked = enabled;
+
+        var persisted = UsageApiPreference.TrySetEnabled(enabled);
+
+        if (!enabled)
+        {
+            _store.Update(current => current.WithoutUsageApiFields());
+        }
+
+        if (!persisted)
+        {
+            ShowBalloon(
+                "That preference could not be saved, so the usage API setting will return to its "
+                + "previous value when BorisCodeStatus restarts.",
+                ToolTipIcon.Warning);
         }
     }
 
