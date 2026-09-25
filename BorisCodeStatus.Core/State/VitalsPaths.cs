@@ -13,8 +13,12 @@ public static class VitalsPaths
     /// <summary>Records when the fallback usage API was last called, to enforce the interval across processes.</summary>
     public static string UsageApiStampFile => Path.Combine(DataDirectory, "usage-api.stamp");
 
-    /// <summary>Present when the user has paused the HTTP service. Its existence is the flag.</summary>
-    public static string PausedFlagFile => Path.Combine(DataDirectory, "http-paused.flag");
+    /// <summary>
+    /// Present when the user has switched the HTTP service on. Marks the non-default setting, since
+    /// the endpoint is closed out of the box. (Earlier versions defaulted to on and wrote
+    /// <c>http-paused.flag</c> instead; that file is now ignored.)
+    /// </summary>
+    public static string HttpEnabledFlagFile => Path.Combine(DataDirectory, "http-enabled.flag");
 
     /// <summary>
     /// Present when the user has turned notifications off. Marks the non-default setting, since

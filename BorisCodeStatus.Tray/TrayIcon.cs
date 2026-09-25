@@ -22,7 +22,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly NotifyIcon _notifyIcon;
     private readonly VitalsStateStore _store;
     private readonly VitalsApiHost _api;
-    private readonly ToolStripMenuItem _pauseItem;
+    private readonly ToolStripMenuItem _httpItem;
     private readonly ToolStripMenuItem _notificationsItem;
     private readonly int _port;
     private readonly SynchronizationContext _uiContext;
@@ -42,7 +42,7 @@ internal sealed class TrayIcon : IDisposable
     private Icon? _currentIcon;
     private DogState _renderedDog = (DogState)(-1);
     private int _renderedQuotaBucket = -1;
-    private bool _pausePersisted = true;
+    private bool _httpPersisted = true;
 
     /// <summary>
     /// When the wait we last notified about began. Guards against re-notifying the same prompt
@@ -69,16 +69,13 @@ internal sealed class TrayIcon : IDisposable
         _weekItem = new ToolStripMenuItem("Week: —") { Enabled = false };
         _activityItem = new ToolStripMenuItem("Status: —") { Enabled = false };
 
-        // Checked-state toggle rather than a label that flips between Pause and Resume: the tick
+        // Checked-state toggle rather than a label that flips between Start and Stop: the tick
         // says what is true now, where a verb only says what the click will do.
-        _pauseItem = new ToolStripMenuItem("Pause HTTP service", null, (_, _) => TogglePaused())
+        _httpItem = new ToolStripMenuItem("Enable HTTP service", null, (_, _) => ToggleHttp())
         {
             CheckOnClick = false,
         };
 
-        // Everything actionable sits under Advanced: the top level is then purely the current
-        // figures, which is what someone opening the menu is almost always here to read.
-        // Double-clicking the icon still opens the browser, so the common action keeps a shortcut.
         // Enabled by default; the tick reflects what is stored, not what a click will do.
         _notificationsItem = new ToolStripMenuItem("Notify when waiting", null, (_, _) => ToggleNotifications())
         {
@@ -86,10 +83,15 @@ internal sealed class TrayIcon : IDisposable
             CheckOnClick = false,
         };
 
+        // Everything actionable sits in a submenu: the top level is then purely the current
+        // figures, which is what someone opening the menu is almost always here to read.
+        // Settings holds the persisted preferences; Advanced holds one-off actions and repairs.
+        // Double-clicking the icon still opens the browser, so the common action keeps a shortcut.
+        var settings = new ToolStripMenuItem("Settings");
+        settings.DropDownItems.Add(_notificationsItem);
+        settings.DropDownItems.Add(_httpItem);
+
         var advanced = new ToolStripMenuItem("Advanced");
-        advanced.DropDownItems.Add(_notificationsItem);
-        advanced.DropDownItems.Add(_pauseItem);
-        advanced.DropDownItems.Add(new ToolStripSeparator());
         advanced.DropDownItems.Add(new ToolStripMenuItem("Open in Browser", null, (_, _) => OpenDashboard()));
         advanced.DropDownItems.Add(new ToolStripMenuItem("Re-register hooks", null, (_, _) => ReRegisterHooks()));
         advanced.DropDownItems.Add(new ToolStripMenuItem("Fix firewall access...", null, (_, _) => FixFirewallAccess()));
@@ -108,6 +110,7 @@ internal sealed class TrayIcon : IDisposable
         menu.Items.Add(_sessionItem);
         menu.Items.Add(_weekItem);
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(settings);
         menu.Items.Add(advanced);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Exit", null, (_, _) => Application.Exit()));
@@ -129,11 +132,16 @@ internal sealed class TrayIcon : IDisposable
         _store.Changed += OnStateChanged;
         _store.StartWatching();
 
-        WarnIfFirewallBlocksTheDisplay();
+        // With the service off there is nothing for the firewall to block, and a warning about it
+        // would only confuse; the check runs when the user switches the service on instead.
+        if (_api.IsListening)
+        {
+            WarnIfFirewallBlocksTheDisplay();
+        }
     }
 
     /// <summary>
-    /// Checks once at startup whether the firewall will stop the ESP32 reaching us, and says so.
+    /// Checks at startup and on enabling whether the firewall will stop the ESP32 reaching us, and says so.
     /// Without this the failure is silent and looks like the app is broken: /status answers
     /// perfectly from this PC while the display never updates.
     ///
@@ -179,15 +187,18 @@ internal sealed class TrayIcon : IDisposable
             return;
         }
 
-        var paused = !_api.IsListening;
+        var listening = _api.IsListening;
 
-        // A pause is invisible from the outside — the tray icon looks identical and the display
-        // just goes dark — so say so everywhere the user might look.
-        _activityItem.Text = paused ? "Status: HTTP paused" : $"Status: {Describe(state)}";
+        // Both settings are invisible from the outside — the tray icon looks identical and the
+        // display just goes dark, or a prompt simply goes unannounced — so the status line carries
+        // them alongside the activity, and the tooltip flags the service being off.
+        var http = listening ? "HTTP on" : "HTTP off";
+        var notify = _notificationsItem.Checked ? "notify on" : "notify off";
+        _activityItem.Text = $"Status: {Describe(state)} · {http} · {notify}";
         _sessionItem.Text = $"Session (5h): {FormatWindow(state.Session)}";
         _weekItem.Text = $"Week (7d): {FormatWindow(state.Week)}";
-        _notifyIcon.Text = paused ? "BorisCodeStatus — HTTP paused" : BuildTooltip(state);
-        _pauseItem.Checked = paused;
+        _notifyIcon.Text = listening ? BuildTooltip(state) : "BorisCodeStatus — HTTP off";
+        _httpItem.Checked = listening;
 
         UpdateIcon(state);
         NotifyIfWaitingForInput(state);
@@ -318,44 +329,51 @@ internal sealed class TrayIcon : IDisposable
     }
 
     /// <summary>
-    /// Stops or restarts the listener, leaving the tray and the hooks running. Paused means the
-    /// port is released, so the display gets a refused connection — the case its "relay down"
-    /// handling already covers — rather than an error response it would need to understand.
+    /// Starts or stops the listener, leaving the tray and the hooks running. Off means the port is
+    /// released, so the display gets a refused connection — the case its "relay down" handling
+    /// already covers — rather than an error response it would need to understand.
     ///
-    /// Deliberately not persisted: a pause lasts until the app restarts. Persisting it would let
-    /// someone pause, forget, reboot weeks later and be left debugging a display that was switched
-    /// off on purpose.
+    /// Persisted either way, so the choice survives a restart; see <see cref="HttpPreference"/>
+    /// for why off is the default.
     /// </summary>
-    private void TogglePaused()
+    private void ToggleHttp()
     {
-        var pausing = _api.IsListening;
+        var enabling = !_api.IsListening;
+
+        // On the UI thread and before binding, for the same reason as at startup: the explanation
+        // has to arrive before the Windows firewall prompt, not after it has been dismissed. Shown
+        // once per machine, so enabling again later is silent.
+        if (enabling)
+        {
+            FirewallGuard.ShowFirstRunNoticeIfNeeded(_port);
+        }
 
         // Off the UI thread, and not merely to keep the menu painting: stopping Kestrel takes
         // long enough to be felt, and the tray must stay responsive throughout. The item is
         // disabled meanwhile so a second click cannot start a competing transition.
-        _pauseItem.Enabled = false;
+        _httpItem.Enabled = false;
 
         Task.Run(() =>
         {
             try
             {
-                if (pausing)
-                {
-                    _api.Stop();
-                }
-                else
+                if (enabling)
                 {
                     _api.Start();
                 }
+                else
+                {
+                    _api.Stop();
+                }
 
-                // Only recorded once the change has actually taken effect, so a failed resume
+                // Only recorded once the change has actually taken effect, so a failed start
                 // cannot leave the preference claiming the service is running.
-                _pausePersisted = PausePreference.TrySet(pausing);
+                _httpPersisted = HttpPreference.TrySetEnabled(enabling);
                 return null as string;
             }
             catch (Exception ex) when (ex is IOException or SocketException or InvalidOperationException)
             {
-                // Most likely something else grabbed the port while we were paused.
+                // Most likely something else already holds the port.
                 return ex.Message;
             }
         })
@@ -368,31 +386,35 @@ internal sealed class TrayIcon : IDisposable
                         return;
                     }
 
-                    _pauseItem.Enabled = true;
+                    _httpItem.Enabled = true;
 
                     var failure = task.IsFaulted ? task.Exception?.GetBaseException().Message : task.Result;
                     if (failure is not null)
                     {
                         ShowBalloon(
-                            $"Could not {(pausing ? "pause" : "resume")} the HTTP service: {failure}",
+                            $"Could not {(enabling ? "start" : "stop")} the HTTP service: {failure}",
                             ToolTipIcon.Warning);
-                    }
-                    else if (pausing)
-                    {
-                        // Say when the pause will not survive a restart, rather than let someone
-                        // discover it by finding the endpoint back up after a reboot.
-                        var persistence = _pausePersisted
-                            ? " It will stay paused until you resume, including after a restart."
-                            : " Note: the setting could not be saved, so it will resume on restart.";
-
-                        ShowBalloon(
-                            $"HTTP service paused. Port {_port} is closed, so your display will show " +
-                            "the relay as down." + persistence,
-                            ToolTipIcon.Info);
                     }
                     else
                     {
-                        ShowBalloon($"HTTP service resumed on port {_port}.", ToolTipIcon.Info);
+                        // Say when the choice will not survive a restart, rather than let someone
+                        // discover it by finding the endpoint in the other state after a reboot.
+                        var persistence = _httpPersisted
+                            ? ""
+                            : " Note: the setting could not be saved, so it will not survive a restart.";
+
+                        ShowBalloon(
+                            enabling
+                                ? $"HTTP service on, serving /status on port {_port}." + persistence
+                                : $"HTTP service off. Port {_port} is closed, so your display will show " +
+                                  "the relay as down." + persistence,
+                            ToolTipIcon.Info);
+
+                        // The balloon above would hide this warning, so let it land after.
+                        if (enabling)
+                        {
+                            WarnIfFirewallBlocksTheDisplay();
+                        }
                     }
 
                     Refresh(_store.Current);
@@ -403,12 +425,13 @@ internal sealed class TrayIcon : IDisposable
 
     /// <summary>
     /// Turns the waiting notification on or off. Cheap enough to do inline on the UI thread —
-    /// it is one small file write, unlike pausing, which stops a web host.
+    /// it is one small file write, unlike the HTTP toggle, which starts or stops a web host.
     /// </summary>
     private void ToggleNotifications()
     {
         var enabled = !_notificationsItem.Checked;
         _notificationsItem.Checked = enabled;
+        Refresh(_store.Current);
 
         if (!NotificationPreference.TrySetEnabled(enabled))
         {

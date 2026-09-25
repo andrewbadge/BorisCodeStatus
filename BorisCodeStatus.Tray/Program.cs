@@ -32,15 +32,17 @@ internal static class Program
         var options = VitalsApiOptions.FromEnvironment();
         var store = VitalsStateStore.Default;
 
-        // A pause survives a restart, including the automatic one at login: someone who switched
-        // the endpoint off did not mean "until I next log in".
-        var startPaused = PausePreference.IsPaused();
+        // Off unless the user has switched it on. The endpoint is unauthenticated and LAN-wide, so a
+        // fresh install should not open a port nobody asked for; once switched on it stays on
+        // across restarts, including the automatic one at login.
+        var startListening = HttpPreference.IsEnabled();
 
         // Deliberately before StartApi: binding a non-loopback port is what raises the Windows
         // firewall prompt, and a user who meets that prompt with no context tends to dismiss it —
         // which does not skip the rule, it blocks the app. Explain first, then bind. Skipped
-        // entirely when starting paused, since nothing is about to bind.
-        if (!startPaused)
+        // entirely when the service is off, since nothing is about to bind; the tray shows the
+        // notice instead when the user first switches it on.
+        if (startListening)
         {
             FirewallGuard.ShowFirstRunNoticeIfNeeded(options.Port);
         }
@@ -48,7 +50,7 @@ internal static class Program
         using var api = new VitalsApiHost(options, store);
         try
         {
-            if (!startPaused)
+            if (startListening)
             {
                 api.Start();
             }

@@ -4,7 +4,7 @@ namespace BorisCodeStatus.Core.State;
 /// Whether the tray may raise a notification when Claude Code is waiting on the user.
 ///
 /// Enabled by default, so the marker file means <em>disabled</em>: that way a missing or
-/// unreadable preference gives the default, and there is no first-run write. Like the pause
+/// unreadable preference gives the default, and there is no first-run write. Like the HTTP
 /// preference, it survives a restart.
 /// </summary>
 public static class NotificationPreference
