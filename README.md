@@ -305,10 +305,15 @@ Get-NetFirewallRule -Direction Inbound | Where-Object DisplayName -like "*BorisC
 The rules that apply are the ones matching the **active** `NetworkCategory`. A laptop on Wi-Fi is
 frequently `Public`, not `Private`.
 
-**The app handles most of this for you.** Before it binds the port on first run it shows a dialog
-explaining that the Windows prompt is about to appear and why "Allow access" matters. On every
-start it checks the firewall (reading rules needs no elevation) and warns with a tray balloon if
-the display cannot reach it. The tray menu item **Fix firewall access...** reports the current state
+**None of this applies while the HTTP service is off**, which is the default. Nothing binds the
+port, so Windows never prompts, the app never checks or warns, and **Fix firewall access...** is
+greyed out — a rule for a port nothing is listening on would open the firewall for no reason.
+
+**Once it is on, the app handles most of this for you.** Before it first binds the port it shows a
+dialog explaining that the Windows prompt is about to appear and why "Allow access" matters. On
+every start with the service on, and whenever you switch it on, it checks the firewall (reading
+rules needs no elevation) and warns with a tray balloon if the display cannot reach it. The tray
+menu item **Fix firewall access...** reports the current state
 and offers either to run the repair elevated — surfacing the UAC prompt so an administrator can
 approve it — or to copy the exact command to send to whoever administers the machine. It refuses to
 open the `Public` profile unless you explicitly confirm.
@@ -504,9 +509,10 @@ is shown the first time you enable the service, just before it binds, and the fi
 then too — neither appears while the service is off, since there is nothing to block.
 
 Because the service's state is otherwise invisible from outside, the menu item is ticked while it
-is on, the status line reads **HTTP on** or **HTTP off**, and the tray tooltip reads
-**HTTP off** while it is off. If the preference cannot be written, the change still takes effect
-and the balloon says it will not survive a restart.
+is on and the status line reads **HTTP on** or **HTTP off**. The tray tooltip leaves it out: with
+the service off by default, saying so there would push out the activity and quota figures most of
+the time. If the preference cannot be written, the change still takes effect and the balloon says
+it will not survive a restart.
 
 **Toggling needs no elevation.** This is a per-user app with no service and no admin rights
 anywhere in its design, and gating a local toggle behind UAC would be both out of keeping and
