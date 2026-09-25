@@ -591,6 +591,14 @@ dotnet test BorisCodeStatus.Core.Tests
 Pushing repeatedly to a PR cancels the superseded run, so a burst of commits costs one build rather
 than several. Runs on `main` are never cancelled, so every merged commit keeps its own result.
 
+### Dependency updates
+
+`.github/dependabot.yml` opens weekly pull requests for NuGet packages and GitHub Actions, so each
+one is built and tested by `build.yml` before it can reach `main`; nothing merges automatically.
+The xUnit test packages and the Actions are grouped into one PR each. **WiX is excluded** — it is
+pinned to 4.0.5 for licensing reasons (see [Build](#build)), and the SDK, extensions and CLI must
+move together, which a single package bump would break.
+
 ### Publishing a release
 
 `.github/workflows/release.yml` is **run manually**: Actions → Release → *Run workflow*. It builds,
@@ -725,11 +733,14 @@ Reads share every file mode and swallow transient I/O errors.
 
 ## Contributing
 
-Issues and pull requests are welcome. Before changing behaviour, read the
-[Design notes](#design-notes) and the conventions in [`CLAUDE.md`](CLAUDE.md) — several of them
-(the hook process never failing, derived values computed on read, `settings.json` never being
-regenerated) exist because the alternative broke something. Changes should keep this README
-current in the same pull request, and `dotnet test` must pass.
+Issues and pull requests are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md). Before changing
+behaviour, read the [Design notes](#design-notes) and the conventions in [`CLAUDE.md`](CLAUDE.md) —
+several of them (the hook process never failing, derived values computed on read, `settings.json`
+never being regenerated) exist because the alternative broke something. Changes should keep this
+README current in the same pull request, and `dotnet test` must pass.
+
+Taking part means following the [Code of Conduct](CODE_OF_CONDUCT.md). Please report security
+problems privately, as described in [`SECURITY.md`](SECURITY.md), rather than in a public issue.
 
 By contributing you agree that your contribution is licensed under the same terms as the project.
 

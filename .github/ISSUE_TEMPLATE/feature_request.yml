@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest an improvement or a new capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that BorisCodeStatus makes hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: How you picture it working. Rough is fine.
+    validations:
+      required: true
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Does this touch any of these?
+      description: Not a blocker — these just need more care. See the README's Privacy and Security sections.
+      options:
+        - label: Adds or changes a field on `/status` (the ESP32 wire format)
+        - label: Reads, stores, serves or sends data it does not today
+        - label: Adds a network call
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
