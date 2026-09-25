@@ -1,9 +1,63 @@
 # BorisClaudeNotifications
 
-A small Windows user-mode background app that exposes Claude Code session and usage data over
-HTTP on the local network, so an ESP32-based physical display (CrowPanel) can poll it.
+A small Windows tray app that shows what [Claude Code](https://docs.claude.com/en/docs/claude-code)
+is doing — working, idle, or waiting for your permission — and how much of your usage quota is
+left, and serves the same data over HTTP on your local network so a physical display (an
+ESP32-based CrowPanel, in the setup it was built for) can show it too.
 
-It runs as a system-tray icon — no console window, no Windows service, no administrator rights.
+- A pixel-art dog in the tray changes pose with Claude's state; a ring around it shows the
+  five-hour quota used.
+- A notification card pops up when Claude is waiting on you, so a permission prompt is not missed.
+- `GET /status` on port 5080 returns the whole picture as JSON for any device on the LAN.
+
+It runs as a per-user tray icon — no console window, no Windows service, no administrator rights
+to install.
+
+> **Unofficial.** This is an independent community project. It is not made, endorsed or supported
+> by Anthropic. See [Trademarks](#trademarks).
+
+## Quick start
+
+**Requirements:** Windows 10 or 11 (x64) and Claude Code. The quota figures need a Claude
+subscription login — Claude Code omits `rate_limits` on API-key sessions, so those show state only.
+
+1. Download `BorisClaudeNotifications-<version>.msi` from the
+   [Releases](https://github.com/andrewbadge/BorisClaudeNotifications/releases) page and run it.
+   It installs for your user only; there is no UAC prompt.
+2. The tray icon appears and registers its hooks in `~/.claude/settings.json` (see
+   [Hook registration](#hook-registration-first-run-logic-not-an-msi-custom-action) for exactly
+   what it writes, and what it refuses to overwrite).
+3. If you want another device to reach it, **allow the Windows Firewall prompt** — this is the one
+   step that needs an administrator. See [Windows Firewall](#the-one-place-admin-can-appear-windows-firewall).
+4. Check it: `curl http://localhost:5080/status`.
+
+The display firmware is a separate project and is not part of this repository. Anything that can
+make an HTTP `GET` and parse JSON can consume `/status`.
+
+## Privacy: what it reads, and what leaves your machine
+
+Worth knowing before you install anything that hooks into Claude Code:
+
+- **It reads** a few fields of the JSON Claude Code pipes to its hooks: model, usage percentages,
+  cost, session id and name, the event name, and the text of permission prompts. Claude Code sends
+  each hook its whole payload — for `UserPromptSubmit` that includes your prompt — but the hook
+  deserialises only those fields and discards the rest unread. It never opens your transcripts or
+  project files.
+- **It reads your Claude Code OAuth token** from `~/.claude/.credentials.json`, for one purpose:
+  calling `https://api.anthropic.com/api/oauth/usage` — the same account the token belongs to — at
+  most once every 5 minutes, to fetch the one figure the hooks do not supply. The token is sent
+  nowhere else and is never written anywhere by this app. See [data source 3](#3-apioauthusage--fallback-only).
+- **It serves** the fields shown in the [`/status` sample](#the-status-endpoint) to anything on your
+  LAN, **without authentication**. That includes session names and cost. Read the
+  security note under [The `/status` endpoint](#the-status-endpoint) before using it on a network you do
+  not trust.
+- **It writes** `%LOCALAPPDATA%\BorisClaudeNotifications\` (state and preferences) and adds entries
+  to `~/.claude/settings.json`, after backing that file up once.
+- There is no telemetry, no analytics and no update check.
+
+---
+
+## How it works
 
 ```
  Claude Code ──stdin JSON──▶ BorisClaudeNotifications.Hooks.exe ──writes──▶ %LOCALAPPDATA%\BorisClaudeNotifications\state.json
@@ -108,7 +162,7 @@ API call.
 | Project | Target | Role |
 |---|---|---|
 | `BorisClaudeNotifications.Core` | `net10.0` | Models, state store, settings merger, usage API client |
-| `BorisClaudeNotifications.Core.Tests` | `net10.0-windows` | 114 unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences, firewall port matching |
+| `BorisClaudeNotifications.Core.Tests` | `net10.0-windows` | Unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences, firewall port matching |
 | `BorisClaudeNotifications.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
 | `BorisClaudeNotifications.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
 | `BorisClaudeNotifications.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
@@ -604,3 +658,46 @@ Reads share every file mode and swallow transient I/O errors.
   re-registered to the install path automatically, and live session data served from `/status`.
   What that install did *not* cover: a machine with no prior BorisClaudeNotifications state, and the upgrade and
   uninstall paths. Those are still worth exercising on a fresh VM before distributing.
+- **Windows only.** The tray, the installer and the firewall handling are all Windows-specific.
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome. Before changing behaviour, read the
+[Design notes](#design-notes) and the conventions in [`CLAUDE.md`](CLAUDE.md) — several of them
+(the hook process never failing, derived values computed on read, `settings.json` never being
+regenerated) exist because the alternative broke something. Changes should keep this README
+current in the same pull request, and `dotnet test` must pass.
+
+By contributing you agree that your contribution is licensed under the same terms as the project.
+
+## License
+
+Copyright (C) 2026 Andrew Badge.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+**GNU General Public License** as published by the Free Software Foundation, either version 3 of
+the License, or (at your option) any later version. It is distributed in the hope that it will be
+useful, but **without any warranty**; without even the implied warranty of merchantability or
+fitness for a particular purpose. See [`LICENSE`](LICENSE) for the full text, which the installer
+also places beside the executables as `LICENSE.txt`.
+
+### Third-party components
+
+The MSI bundles components that are not covered by this project's license:
+
+| Component | License | Where |
+|---|---|---|
+| .NET runtime and ASP.NET Core | MIT | Self-contained in both executables |
+| WiX Toolset v4 utility custom action (`Wix4UtilCA`) | MS-RL | Inside the MSI, used to close and launch the tray during install |
+
+The WiX custom action runs only during installation and is not linked into the program. The test
+suite additionally uses xUnit (Apache 2.0) and coverlet (MIT) at build time; neither ships.
+
+## Trademarks
+
+"Claude" and "Claude Code" are trademarks of Anthropic, PBC. They are used here only to say which
+tool this project works with. This project is not affiliated with, endorsed by or sponsored by
+Anthropic, and it relies on an undocumented Anthropic endpoint that may change or stop working at
+any time.

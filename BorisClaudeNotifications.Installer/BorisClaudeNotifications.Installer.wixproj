@@ -59,6 +59,10 @@
       <StagedPdb Include="$(StageDir)**\*.pdb" />
     </ItemGroup>
     <Delete Files="@(StagedPdb)" />
+
+    <!-- GPL-3.0 section 4 requires conveying a copy of the license with the program, so it is
+         staged beside the executables and harvested with them. -->
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\LICENSE" DestinationFiles="$(StageDir)LICENSE.txt" />
   </Target>
 
 </Project>

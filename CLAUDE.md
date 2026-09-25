@@ -113,6 +113,11 @@ Match that register; the existing XML doc comments are the house style.
   and repair with the tray's **Re-register hooks**.
 - `/status` is unauthenticated and bound to `0.0.0.0` by design in v1. Do not quietly widen what it
   exposes; it already serves session names and cost to anything on the LAN.
+- **The project is public and GPL-3.0-or-later**, and the README's *Privacy* section makes
+  specific promises: which hook fields are read, that the OAuth token goes only to
+  `api.anthropic.com`, no telemetry. Any change to what is read, stored, served or sent must update
+  that section in the same change, or the README starts lying to users. A new bundled dependency
+  goes in its *Third-party components* table.
 - `VitalsStateStore.JsonOptions` is `internal` and `BorisClaudeNotifications.Core` grants no `InternalsVisibleTo` —
   construct local `JsonSerializerOptions(JsonSerializerDefaults.Web)` in tests. (`BorisClaudeNotifications.Tray`
   *does* grant it, so its `internal` members are testable.)

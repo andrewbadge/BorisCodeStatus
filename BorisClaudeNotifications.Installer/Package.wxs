@@ -10,7 +10,7 @@
   -->
   <Package
       Name="BorisClaudeNotifications"
-      Manufacturer="BorisClaudeNotifications"
+      Manufacturer="Andrew Badge"
       Version="$(var.Version)"
       UpgradeCode="5f2a1c7e-9d84-4b31-8c06-1f7a3e5b90d2"
       Scope="perUser"

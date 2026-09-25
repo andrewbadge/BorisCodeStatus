@@ -16,7 +16,7 @@ namespace BorisClaudeNotifications.Tray;
 /// </summary>
 internal sealed class TrayIcon : IDisposable
 {
-    /// <summary>Where the menu header points. Private today, so this may 404 for anyone else.</summary>
+    /// <summary>Where the menu header points: the public source repository.</summary>
     private const string RepositoryUrl = "https://github.com/andrewbadge/BorisClaudeNotifications";
 
     private readonly NotifyIcon _notifyIcon;
@@ -95,8 +95,7 @@ internal sealed class TrayIcon : IDisposable
         advanced.DropDownItems.Add(new ToolStripMenuItem("Fix firewall access...", null, (_, _) => FixFirewallAccess()));
 
         // Header: what is running, and a way to get to the source. Left enabled so it can be
-        // clicked; the repo is private today, so for anyone but the owner this will land on
-        // GitHub's 404 rather than the project — acceptable, and self-correcting if it opens up.
+        // clicked — under the GPL, the way to the source is worth keeping one click away.
         var titleItem = new ToolStripMenuItem($"BorisClaudeNotifications v{BuildVersion}", null, (_, _) => OpenUrl(RepositoryUrl))
         {
             Font = new Font(SystemFonts.MenuFont ?? SystemFonts.DefaultFont, FontStyle.Bold),
