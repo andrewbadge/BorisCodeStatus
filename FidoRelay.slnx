@@ -1,8 +1,0 @@
-<Solution>
-  <Project Path="FidoRelay.Api/FidoRelay.Api.csproj" />
-  <Project Path="FidoRelay.Core.Tests/FidoRelay.Core.Tests.csproj" />
-  <Project Path="FidoRelay.Core/FidoRelay.Core.csproj" />
-  <Project Path="FidoRelay.Hooks/FidoRelay.Hooks.csproj" />
-  <Project Path="FidoRelay.Installer/FidoRelay.Installer.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" />
-  <Project Path="FidoRelay.Tray/FidoRelay.Tray.csproj" />
-</Solution>

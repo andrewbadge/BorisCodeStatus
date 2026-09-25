@@ -10,4 +10,4 @@
 *.suo
 
 # WiX harvesting intermediates
-FidoRelay.Installer/obj/stage/
+BorisClaudeNotifications.Installer/obj/stage/

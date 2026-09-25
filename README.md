@@ -1,4 +1,4 @@
-# FidoRelay
+# BorisClaudeNotifications
 
 A small Windows user-mode background app that exposes Claude Code session and usage data over
 HTTP on the local network, so an ESP32-based physical display (CrowPanel) can poll it.
@@ -6,11 +6,11 @@ HTTP on the local network, so an ESP32-based physical display (CrowPanel) can po
 It runs as a system-tray icon — no console window, no Windows service, no administrator rights.
 
 ```
- Claude Code ──stdin JSON──▶ FidoRelay.Hooks.exe ──writes──▶ %LOCALAPPDATA%\FidoRelay\state.json
+ Claude Code ──stdin JSON──▶ BorisClaudeNotifications.Hooks.exe ──writes──▶ %LOCALAPPDATA%\BorisClaudeNotifications\state.json
   (statusLine +                (runs once per event,                          │
    lifecycle hooks)             then exits)                                   │ FileSystemWatcher
                                                                               ▼
-                                            FidoRelay.Tray.exe ── hosts ──▶ GET /status  ◀── ESP32
+                                            BorisClaudeNotifications.Tray.exe ── hosts ──▶ GET /status  ◀── ESP32
                                              (tray icon + in-process API)         :5080
 ```
 
@@ -107,14 +107,14 @@ API call.
 
 | Project | Target | Role |
 |---|---|---|
-| `FidoRelay.Core` | `net10.0` | Models, state store, settings merger, usage API client |
-| `FidoRelay.Core.Tests` | `net10.0-windows` | 114 unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences, firewall port matching |
-| `FidoRelay.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
-| `FidoRelay.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
-| `FidoRelay.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
-| `FidoRelay.Installer` | WiX v4 | Produces `FidoRelay.msi` |
+| `BorisClaudeNotifications.Core` | `net10.0` | Models, state store, settings merger, usage API client |
+| `BorisClaudeNotifications.Core.Tests` | `net10.0-windows` | 114 unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences, firewall port matching |
+| `BorisClaudeNotifications.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
+| `BorisClaudeNotifications.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
+| `BorisClaudeNotifications.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
+| `BorisClaudeNotifications.Installer` | WiX v4 | Produces `BorisClaudeNotifications.msi` |
 
-`FidoRelay.Api` is a library, not an executable: the tray app starts its `WebApplication`
+`BorisClaudeNotifications.Api` is a library, not an executable: the tray app starts its `WebApplication`
 in-process so there is one process to install, run and tray-manage. It stays a separate project so
 the endpoint can be built and tested independently of the WinForms host.
 
@@ -128,7 +128,7 @@ GET http://<host>:5080/health
 ```
 
 Bound to `0.0.0.0` so the ESP32 can reach it across the LAN. Port is overridable with the
-`FIDORELAY_PORT` environment variable. CORS allows all origins.
+`BORISCLAUDENOTIFICATIONS_PORT` environment variable. CORS allows all origins.
 
 ```json
 {
@@ -138,7 +138,7 @@ Bound to `0.0.0.0` so the ESP32 can reach it across the LAN. Port is overridable
   "context_used_percentage": 37.5,
   "model_display_name": "Opus 5",
   "session_id": "abc-123",
-  "session_name": "fido relay",
+  "session_name": "boris claude notifications",
   "session_cost_usd": 1.2345,
   "session_duration_ms": 843000,
   "month_cost_usd": null,
@@ -177,13 +177,13 @@ checked in a one-line middleware, with the token stored next to `state.json`.
 ## Install
 
 ```
-FidoRelay.msi
+BorisClaudeNotifications.msi
 ```
 
 **No administrator rights are required**, by design:
 
 - per-user MSI (`Scope="perUser"`, no `ALLUSERS`) — no UAC prompt
-- installs to `%LOCALAPPDATA%\Programs\FidoRelay` — not `Program Files`
+- installs to `%LOCALAPPDATA%\Programs\BorisClaudeNotifications` — not `Program Files`
 - starts at login via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 - no Windows service, no scheduled task
 - Kestrel binds `0.0.0.0:5080` with a plain socket, so no `netsh http add urlacl` reservation is
@@ -205,8 +205,7 @@ do — Windows does not simply skip the rule: it **creates `Block` rules** for t
 **Upgrading does not cost you this again.** Firewall rules key on the executable's *path*, not its
 contents, so replacing the binary in place leaves them matching; `ShowFirstRunNoticeIfNeeded` and
 the warning balloon both stop early once `Detect()` returns `Allowed`. A prompt only reappears if
-the path itself changes — as it did in the rename from ClaudeVitals, which is why that upgrade
-asked once and no later one has.
+the path itself changes.
 
 `Detect()` recognises **both shapes of rule**: one naming this executable, as approving Windows'
 own prompt creates, and one naming no application but opening our TCP port, as
@@ -230,7 +229,7 @@ Check the actual state before trusting it:
 
 ```powershell
 Get-NetConnectionProfile | Select-Object InterfaceAlias, NetworkCategory
-Get-NetFirewallRule -Direction Inbound | Where-Object DisplayName -like "*FidoRelay*" |
+Get-NetFirewallRule -Direction Inbound | Where-Object DisplayName -like "*BorisClaudeNotifications*" |
   Select-Object DisplayName, Action, Profile
 ```
 
@@ -250,15 +249,15 @@ The manual equivalent, for an administrator fixing it once per machine:
 ```powershell
 # 1. Remove any Block rules left behind by a dismissed prompt
 Get-NetFirewallRule -Direction Inbound -Action Block |
-  Where-Object { $_.DisplayName -like "*FidoRelay*" -or $_.DisplayName -like "fidorelay*" } |
+  Where-Object { $_.DisplayName -like "*BorisClaudeNotifications*" -or $_.DisplayName -like "borisclaudenotifications*" } |
   Remove-NetFirewallRule
 
 # 2. Mark the network Private, if it is genuinely a home or office LAN
 Set-NetConnectionProfile -InterfaceAlias "Wi-Fi" -NetworkCategory Private
 
 # 3. Allow the relay on that profile only
-New-NetFirewallRule -DisplayName "FidoRelay" -Direction Inbound `
-  -Program "$env:LOCALAPPDATA\Programs\FidoRelay\FidoRelay.Tray.exe" `
+New-NetFirewallRule -DisplayName "BorisClaudeNotifications" -Direction Inbound `
+  -Program "$env:LOCALAPPDATA\Programs\BorisClaudeNotifications\BorisClaudeNotifications.Tray.exe" `
   -Protocol TCP -LocalPort 5080 -Profile Private -Action Allow
 ```
 
@@ -283,7 +282,7 @@ during installation from the user's point of view.
 
 **`settings.json` is read-modify-written as a JSON tree, never regenerated.** Unrelated
 configuration (permissions, theme, env, other hooks) is preserved, the original is backed up once
-to `settings.json.fidorelay.bak`, and an unparseable file is left completely untouched.
+to `settings.json.borisclaudenotifications.bak`, and an unparseable file is left completely untouched.
 
 **An existing third-party `statusLine` is never overwritten.** If one is present the app leaves it
 alone and warns instead — remove the `statusLine` entry from `settings.json` by hand to switch over.
@@ -295,7 +294,7 @@ Registered entries:
 {
   "statusLine": {
     "type": "command",
-    "command": "\"%LOCALAPPDATA%\\Programs\\FidoRelay\\FidoRelay.Hooks.exe\" statusline"
+    "command": "\"%LOCALAPPDATA%\\Programs\\BorisClaudeNotifications\\BorisClaudeNotifications.Hooks.exe\" statusline"
   },
   "hooks": {
     "Notification":     [{ "hooks": [{ "type": "command", "command": "\"...\" notification" }] }],
@@ -336,7 +335,7 @@ on a 32px canvas; grow either and the ring clips the ears and the accent block. 
 
 ### The application icon
 
-Separate from the tray glyph, `FidoRelay.Tray/fido.ico` is what Explorer, the Start Menu, Alt-Tab
+Separate from the tray glyph, `BorisClaudeNotifications.Tray/fido.ico` is what Explorer, the Start Menu, Alt-Tab
 and Installed Apps show. It is the one committed binary in the project: the toolchain's
 `ApplicationIcon` takes a file path, not pixel data, so the `DogSprites` approach does not apply.
 
@@ -354,10 +353,10 @@ fall asleep — nothing writes to the state file while a session is idle, so wit
 own the icon would sit awake indefinitely. It re-renders only when the pose or the quota bucket
 actually changes.
 
-The pose rule lives in `FidoRelay.Core` (`DogStates.For`) rather than in the tray, so the ESP32
+The pose rule lives in `BorisClaudeNotifications.Core` (`DogStates.For`) rather than in the tray, so the ESP32
 display can derive the same pose from the same state instead of inventing its own mapping.
 
-Right-click menu: a **FidoRelay v1.2.3** header (the build version, stamped at compile time —
+Right-click menu: a **BorisClaudeNotifications v1.2.3** header (the build version, stamped at compile time —
 clicking it opens the GitHub repository), then the current session and week figures
 (display-only), then **Advanced** and **Exit**. The actions live under **Advanced** — **Notify
 when waiting**, **Pause HTTP service**, **Open in Browser** (opens `/status`), **Re-register
@@ -415,7 +414,7 @@ would have to learn about. Verified on both loopback and the LAN address.
 
 **The pause survives a restart**, including the automatic one at login — someone who switched the
 endpoint off did not mean "until I next log in". It is remembered as a marker file,
-`%LOCALAPPDATA%\FidoRelay\http-paused.flag`, rather than a field in `state.json`: that file is the
+`%LOCALAPPDATA%\BorisClaudeNotifications\http-paused.flag`, rather than a field in `state.json`: that file is the
 wire payload, rewritten constantly by the hook process, and a preference has no business being
 carried in it or exposed on `/status`. The file's existence is the whole flag, so there is nothing
 to parse and nothing that can corrupt into a confusing half-state. Delete it to un-pause without
@@ -456,7 +455,7 @@ dotnet tool install --global wix --version 4.0.5
 dotnet build -c Release
 ```
 
-A Release build of the solution produces `FidoRelay.Installer\bin\Release\FidoRelay.msi` as a
+A Release build of the solution produces `BorisClaudeNotifications.Installer\bin\Release\BorisClaudeNotifications.msi` as a
 normal build output — no separate packaging step.
 
 > **WiX version:** pinned to **4.0.5**. WiX v7 requires accepting the Open Source Maintenance Fee
@@ -466,7 +465,7 @@ normal build output — no separate packaging step.
 Run the tests:
 
 ```bash
-dotnet test FidoRelay.Core.Tests
+dotnet test BorisClaudeNotifications.Core.Tests
 ```
 
 ### Continuous integration
@@ -545,15 +544,15 @@ dotnet build -c Release -p:Version=1.2.3
 
 ```bash
 echo '{"model":{"display_name":"Opus 5"},"rate_limits":{"five_hour":{"used_percentage":42}}}' \
-  | FidoRelay.Hooks.exe statusline
+  | BorisClaudeNotifications.Hooks.exe statusline
 
-echo '{"hook_event_name":"Notification"}' | FidoRelay.Hooks.exe notification
+echo '{"hook_event_name":"Notification"}' | BorisClaudeNotifications.Hooks.exe notification
 
-echo '{"hook_event_name":"SessionStart"}' | FidoRelay.Hooks.exe sessionstart
-echo '{"hook_event_name":"SessionEnd"}'   | FidoRelay.Hooks.exe sessionend
+echo '{"hook_event_name":"SessionStart"}' | BorisClaudeNotifications.Hooks.exe sessionstart
+echo '{"hook_event_name":"SessionEnd"}'   | BorisClaudeNotifications.Hooks.exe sessionend
 ```
 
-Then check `%LOCALAPPDATA%\FidoRelay\state.json`, or `curl http://localhost:5080/status` with the
+Then check `%LOCALAPPDATA%\BorisClaudeNotifications\state.json`, or `curl http://localhost:5080/status` with the
 tray running.
 
 ---
@@ -581,27 +580,27 @@ Reads share every file mode and swallow transient I/O errors.
   installed files and Start Menu shortcut are all removed cleanly, but the `statusLine` and `hooks`
   entries remain and will point at a missing executable. Claude Code tolerates this (the commands
   simply fail), but the entries should be removed by hand, or restored from
-  `settings.json.fidorelay.bak`. Automating this is a v1.1 item.
+  `settings.json.borisclaudenotifications.bak`. Automating this is a v1.1 item.
 - **`month_cost_usd` is always `null`.** See above — no data source provides it.
 - **`week_sonnet` depends on an undocumented endpoint** whose response shape is not contractual. The
   client tries several plausible property spellings and returns `null` rather than guessing wrong.
   It may simply never populate.
 - **No authentication on `/status`.** See the security note above.
 - **Running a development build can hijack your real `~/.claude/settings.json`.** The tray registers
-  whatever path it is currently running from. If `FidoRelay.Hooks.exe` happens to sit next to the
+  whatever path it is currently running from. If `BorisClaudeNotifications.Hooks.exe` happens to sit next to the
   tray exe in `bin\Debug\...` or `bin\Release\...`, that throwaway build path is written into your
   global settings — and once the directory is cleaned, every hook silently fails forever, because
   the hook process is deliberately built never to report errors. The symptom is `/status` returning
   `null` for everything with nothing logged anywhere. **This has happened in practice.** Check with:
   ```powershell
-  Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "FidoRelay.Hooks.exe"
+  Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "BorisClaudeNotifications.Hooks.exe"
   ```
   If the path points inside a `bin\` folder, reinstall the MSI or use **Re-register hooks** from the
   tray menu to repoint it. A fix — refusing to register from a `bin\`/`obj\` path, and warning when
   the registered path no longer exists — is a v1.1 item.
 - **The MSI has been installed and verified on a developer machine, not on a clean VM.** Confirmed
   on a real per-user install: `msiexec` exit code 0 with no UAC prompt, product registered and
-  uninstallable, files in `%LOCALAPPDATA%\Programs\FidoRelay`, HKCU Run key set, hooks
+  uninstallable, files in `%LOCALAPPDATA%\Programs\BorisClaudeNotifications`, HKCU Run key set, hooks
   re-registered to the install path automatically, and live session data served from `/status`.
-  What that install did *not* cover: a machine with no prior FidoRelay state, and the upgrade and
+  What that install did *not* cover: a machine with no prior BorisClaudeNotifications state, and the upgrade and
   uninstall paths. Those are still worth exercising on a fresh VM before distributing.
