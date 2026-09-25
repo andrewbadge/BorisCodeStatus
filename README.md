@@ -13,6 +13,12 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
 - `GET /status` on port 5080 returns the whole picture as JSON for any device on the LAN — once you
   switch it on. The HTTP service is **off by default**.
 
+<p>
+  <img src="docs/images/tray-menu.png" alt="The tray menu, showing the status line, session and week quota figures, and the Settings and Advanced submenus" width="305">
+  &nbsp;
+  <img src="docs/images/waiting-card.png" alt="The waiting card: the pixel-art dog with the heading INPUT NEEDED and the text Claude is waiting for your input" width="355">
+</p>
+
 It runs as a per-user tray icon — no console window, no Windows service, no administrator rights
 to install.
 
