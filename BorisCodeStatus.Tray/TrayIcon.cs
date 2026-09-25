@@ -24,6 +24,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly VitalsApiHost _api;
     private readonly ToolStripMenuItem _httpItem;
     private readonly ToolStripMenuItem _notificationsItem;
+    private readonly ToolStripMenuItem _firewallItem;
     private readonly int _port;
     private readonly SynchronizationContext _uiContext;
 
@@ -94,7 +95,10 @@ internal sealed class TrayIcon : IDisposable
         var advanced = new ToolStripMenuItem("Advanced");
         advanced.DropDownItems.Add(new ToolStripMenuItem("Open in Browser", null, (_, _) => OpenDashboard()));
         advanced.DropDownItems.Add(new ToolStripMenuItem("Re-register hooks", null, (_, _) => ReRegisterHooks()));
-        advanced.DropDownItems.Add(new ToolStripMenuItem("Fix firewall access...", null, (_, _) => FixFirewallAccess()));
+        // Greyed out while the HTTP service is off (see Refresh): with nothing listening there is
+        // nothing for a rule to let through, and adding one would open the firewall for no reason.
+        _firewallItem = new ToolStripMenuItem("Fix firewall access...", null, (_, _) => FixFirewallAccess());
+        advanced.DropDownItems.Add(_firewallItem);
 
         // Header: what is running, and a way to get to the source. Left enabled so it can be
         // clicked — under the GPL, the way to the source is worth keeping one click away.
@@ -200,6 +204,7 @@ internal sealed class TrayIcon : IDisposable
         _weekItem.Text = $"Week (7d): {FormatWindow(state.Week)}";
         _notifyIcon.Text = BuildTooltip(state);
         _httpItem.Checked = listening;
+        _firewallItem.Enabled = listening;
 
         UpdateIcon(state);
         NotifyIfWaitingForInput(state);
