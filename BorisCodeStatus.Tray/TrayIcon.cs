@@ -191,13 +191,14 @@ internal sealed class TrayIcon : IDisposable
 
         // Both settings are invisible from the outside — the tray icon looks identical and the
         // display just goes dark, or a prompt simply goes unannounced — so the status line carries
-        // them alongside the activity, and the tooltip flags the service being off.
+        // them alongside the activity. The tooltip deliberately does not: with the service off by
+        // default, flagging it there would replace the usage figures most of the time.
         var http = listening ? "HTTP on" : "HTTP off";
         var notify = _notificationsItem.Checked ? "notify on" : "notify off";
         _activityItem.Text = $"Status: {Describe(state)} · {http} · {notify}";
         _sessionItem.Text = $"Session (5h): {FormatWindow(state.Session)}";
         _weekItem.Text = $"Week (7d): {FormatWindow(state.Week)}";
-        _notifyIcon.Text = listening ? BuildTooltip(state) : "BorisCodeStatus — HTTP off";
+        _notifyIcon.Text = BuildTooltip(state);
         _httpItem.Checked = listening;
 
         UpdateIcon(state);

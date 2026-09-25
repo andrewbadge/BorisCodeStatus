@@ -504,9 +504,10 @@ is shown the first time you enable the service, just before it binds, and the fi
 then too — neither appears while the service is off, since there is nothing to block.
 
 Because the service's state is otherwise invisible from outside, the menu item is ticked while it
-is on, the status line reads **HTTP on** or **HTTP off**, and the tray tooltip reads
-**HTTP off** while it is off. If the preference cannot be written, the change still takes effect
-and the balloon says it will not survive a restart.
+is on and the status line reads **HTTP on** or **HTTP off**. The tray tooltip leaves it out: with
+the service off by default, saying so there would push out the activity and quota figures most of
+the time. If the preference cannot be written, the change still takes effect and the balloon says
+it will not survive a restart.
 
 **Toggling needs no elevation.** This is a per-user app with no service and no admin rights
 anywhere in its design, and gating a local toggle behind UAC would be both out of keeping and
