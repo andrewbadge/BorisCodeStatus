@@ -10,4 +10,4 @@
 *.suo
 
 # WiX harvesting intermediates
-BorisClaudeNotifications.Installer/obj/stage/
+BorisCodeStatus.Installer/obj/stage/

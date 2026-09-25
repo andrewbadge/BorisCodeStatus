@@ -1,4 +1,4 @@
-# BorisClaudeNotifications
+# BorisCodeStatus
 
 A small Windows tray app that shows what [Claude Code](https://docs.claude.com/en/docs/claude-code)
 is doing — working, idle, or waiting for your permission — and how much of your usage quota is
@@ -21,8 +21,8 @@ to install.
 **Requirements:** Windows 10 or 11 (x64) and Claude Code. The quota figures need a Claude
 subscription login — Claude Code omits `rate_limits` on API-key sessions, so those show state only.
 
-1. Download `BorisClaudeNotifications-<version>.msi` from the
-   [Releases](https://github.com/andrewbadge/BorisClaudeNotifications/releases) page and run it.
+1. Download `BorisCodeStatus-<version>.msi` from the
+   [Releases](https://github.com/andrewbadge/BorisCodeStatus/releases) page and run it.
    It installs for your user only; there is no UAC prompt.
 2. The tray icon appears and registers its hooks in `~/.claude/settings.json` (see
    [Hook registration](#hook-registration-first-run-logic-not-an-msi-custom-action) for exactly
@@ -51,7 +51,7 @@ Worth knowing before you install anything that hooks into Claude Code:
   LAN, **without authentication**. That includes session names and cost. Read the
   security note under [The `/status` endpoint](#the-status-endpoint) before using it on a network you do
   not trust.
-- **It writes** `%LOCALAPPDATA%\BorisClaudeNotifications\` (state and preferences) and adds entries
+- **It writes** `%LOCALAPPDATA%\BorisCodeStatus\` (state and preferences) and adds entries
   to `~/.claude/settings.json`, after backing that file up once.
 - There is no telemetry, no analytics and no update check.
 
@@ -60,11 +60,11 @@ Worth knowing before you install anything that hooks into Claude Code:
 ## How it works
 
 ```
- Claude Code ──stdin JSON──▶ BorisClaudeNotifications.Hooks.exe ──writes──▶ %LOCALAPPDATA%\BorisClaudeNotifications\state.json
+ Claude Code ──stdin JSON──▶ BorisCodeStatus.Hooks.exe ──writes──▶ %LOCALAPPDATA%\BorisCodeStatus\state.json
   (statusLine +                (runs once per event,                          │
    lifecycle hooks)             then exits)                                   │ FileSystemWatcher
                                                                               ▼
-                                            BorisClaudeNotifications.Tray.exe ── hosts ──▶ GET /status  ◀── ESP32
+                                            BorisCodeStatus.Tray.exe ── hosts ──▶ GET /status  ◀── ESP32
                                              (tray icon + in-process API)         :5080
 ```
 
@@ -161,14 +161,14 @@ API call.
 
 | Project | Target | Role |
 |---|---|---|
-| `BorisClaudeNotifications.Core` | `net10.0` | Models, state store, settings merger, usage API client |
-| `BorisClaudeNotifications.Core.Tests` | `net10.0-windows` | Unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences, firewall port matching |
-| `BorisClaudeNotifications.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
-| `BorisClaudeNotifications.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
-| `BorisClaudeNotifications.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
-| `BorisClaudeNotifications.Installer` | WiX v4 | Produces `BorisClaudeNotifications.msi` |
+| `BorisCodeStatus.Core` | `net10.0` | Models, state store, settings merger, usage API client |
+| `BorisCodeStatus.Core.Tests` | `net10.0-windows` | Unit tests over parsing, state, merging, throttling, dog poses, pause/resume, preferences, firewall port matching |
+| `BorisCodeStatus.Hooks` | `net10.0` | Console exe Claude Code invokes; self-contained single file |
+| `BorisCodeStatus.Api` | `net10.0` | Minimal API **library** — the tray hosts it in-process |
+| `BorisCodeStatus.Tray` | `net10.0-windows` | WinForms tray app; the only process that actually runs |
+| `BorisCodeStatus.Installer` | WiX v4 | Produces `BorisCodeStatus.msi` |
 
-`BorisClaudeNotifications.Api` is a library, not an executable: the tray app starts its `WebApplication`
+`BorisCodeStatus.Api` is a library, not an executable: the tray app starts its `WebApplication`
 in-process so there is one process to install, run and tray-manage. It stays a separate project so
 the endpoint can be built and tested independently of the WinForms host.
 
@@ -182,7 +182,7 @@ GET http://<host>:5080/health
 ```
 
 Bound to `0.0.0.0` so the ESP32 can reach it across the LAN. Port is overridable with the
-`BORISCLAUDENOTIFICATIONS_PORT` environment variable. CORS allows all origins.
+`BORISCODESTATUS_PORT` environment variable. CORS allows all origins.
 
 ```json
 {
@@ -192,7 +192,7 @@ Bound to `0.0.0.0` so the ESP32 can reach it across the LAN. Port is overridable
   "context_used_percentage": 37.5,
   "model_display_name": "Opus 5",
   "session_id": "abc-123",
-  "session_name": "boris claude notifications",
+  "session_name": "boris code status",
   "session_cost_usd": 1.2345,
   "session_duration_ms": 843000,
   "month_cost_usd": null,
@@ -231,13 +231,13 @@ checked in a one-line middleware, with the token stored next to `state.json`.
 ## Install
 
 ```
-BorisClaudeNotifications.msi
+BorisCodeStatus.msi
 ```
 
 **No administrator rights are required**, by design:
 
 - per-user MSI (`Scope="perUser"`, no `ALLUSERS`) — no UAC prompt
-- installs to `%LOCALAPPDATA%\Programs\BorisClaudeNotifications` — not `Program Files`
+- installs to `%LOCALAPPDATA%\Programs\BorisCodeStatus` — not `Program Files`
 - starts at login via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 - no Windows service, no scheduled task
 - Kestrel binds `0.0.0.0:5080` with a plain socket, so no `netsh http add urlacl` reservation is
@@ -283,7 +283,7 @@ Check the actual state before trusting it:
 
 ```powershell
 Get-NetConnectionProfile | Select-Object InterfaceAlias, NetworkCategory
-Get-NetFirewallRule -Direction Inbound | Where-Object DisplayName -like "*BorisClaudeNotifications*" |
+Get-NetFirewallRule -Direction Inbound | Where-Object DisplayName -like "*BorisCodeStatus*" |
   Select-Object DisplayName, Action, Profile
 ```
 
@@ -303,15 +303,15 @@ The manual equivalent, for an administrator fixing it once per machine:
 ```powershell
 # 1. Remove any Block rules left behind by a dismissed prompt
 Get-NetFirewallRule -Direction Inbound -Action Block |
-  Where-Object { $_.DisplayName -like "*BorisClaudeNotifications*" -or $_.DisplayName -like "borisclaudenotifications*" } |
+  Where-Object { $_.DisplayName -like "*BorisCodeStatus*" -or $_.DisplayName -like "boriscodestatus*" } |
   Remove-NetFirewallRule
 
 # 2. Mark the network Private, if it is genuinely a home or office LAN
 Set-NetConnectionProfile -InterfaceAlias "Wi-Fi" -NetworkCategory Private
 
 # 3. Allow the relay on that profile only
-New-NetFirewallRule -DisplayName "BorisClaudeNotifications" -Direction Inbound `
-  -Program "$env:LOCALAPPDATA\Programs\BorisClaudeNotifications\BorisClaudeNotifications.Tray.exe" `
+New-NetFirewallRule -DisplayName "BorisCodeStatus" -Direction Inbound `
+  -Program "$env:LOCALAPPDATA\Programs\BorisCodeStatus\BorisCodeStatus.Tray.exe" `
   -Protocol TCP -LocalPort 5080 -Profile Private -Action Allow
 ```
 
@@ -336,7 +336,7 @@ during installation from the user's point of view.
 
 **`settings.json` is read-modify-written as a JSON tree, never regenerated.** Unrelated
 configuration (permissions, theme, env, other hooks) is preserved, the original is backed up once
-to `settings.json.borisclaudenotifications.bak`, and an unparseable file is left completely untouched.
+to `settings.json.boriscodestatus.bak`, and an unparseable file is left completely untouched.
 
 **An existing third-party `statusLine` is never overwritten.** If one is present the app leaves it
 alone and warns instead — remove the `statusLine` entry from `settings.json` by hand to switch over.
@@ -348,7 +348,7 @@ Registered entries:
 {
   "statusLine": {
     "type": "command",
-    "command": "\"%LOCALAPPDATA%\\Programs\\BorisClaudeNotifications\\BorisClaudeNotifications.Hooks.exe\" statusline"
+    "command": "\"%LOCALAPPDATA%\\Programs\\BorisCodeStatus\\BorisCodeStatus.Hooks.exe\" statusline"
   },
   "hooks": {
     "Notification":     [{ "hooks": [{ "type": "command", "command": "\"...\" notification" }] }],
@@ -389,7 +389,7 @@ on a 32px canvas; grow either and the ring clips the ears and the accent block. 
 
 ### The application icon
 
-Separate from the tray glyph, `BorisClaudeNotifications.Tray/fido.ico` is what Explorer, the Start Menu, Alt-Tab
+Separate from the tray glyph, `BorisCodeStatus.Tray/fido.ico` is what Explorer, the Start Menu, Alt-Tab
 and Installed Apps show. It is the one committed binary in the project: the toolchain's
 `ApplicationIcon` takes a file path, not pixel data, so the `DogSprites` approach does not apply.
 
@@ -407,10 +407,10 @@ fall asleep — nothing writes to the state file while a session is idle, so wit
 own the icon would sit awake indefinitely. It re-renders only when the pose or the quota bucket
 actually changes.
 
-The pose rule lives in `BorisClaudeNotifications.Core` (`DogStates.For`) rather than in the tray, so the ESP32
+The pose rule lives in `BorisCodeStatus.Core` (`DogStates.For`) rather than in the tray, so the ESP32
 display can derive the same pose from the same state instead of inventing its own mapping.
 
-Right-click menu: a **BorisClaudeNotifications v1.2.3** header (the build version, stamped at compile time —
+Right-click menu: a **BorisCodeStatus v1.2.3** header (the build version, stamped at compile time —
 clicking it opens the GitHub repository), then the current session and week figures
 (display-only), then **Advanced** and **Exit**. The actions live under **Advanced** — **Notify
 when waiting**, **Pause HTTP service**, **Open in Browser** (opens `/status`), **Re-register
@@ -468,7 +468,7 @@ would have to learn about. Verified on both loopback and the LAN address.
 
 **The pause survives a restart**, including the automatic one at login — someone who switched the
 endpoint off did not mean "until I next log in". It is remembered as a marker file,
-`%LOCALAPPDATA%\BorisClaudeNotifications\http-paused.flag`, rather than a field in `state.json`: that file is the
+`%LOCALAPPDATA%\BorisCodeStatus\http-paused.flag`, rather than a field in `state.json`: that file is the
 wire payload, rewritten constantly by the hook process, and a preference has no business being
 carried in it or exposed on `/status`. The file's existence is the whole flag, so there is nothing
 to parse and nothing that can corrupt into a confusing half-state. Delete it to un-pause without
@@ -509,7 +509,7 @@ dotnet tool install --global wix --version 4.0.5
 dotnet build -c Release
 ```
 
-A Release build of the solution produces `BorisClaudeNotifications.Installer\bin\Release\BorisClaudeNotifications.msi` as a
+A Release build of the solution produces `BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi` as a
 normal build output — no separate packaging step.
 
 > **WiX version:** pinned to **4.0.5**. WiX v7 requires accepting the Open Source Maintenance Fee
@@ -519,7 +519,7 @@ normal build output — no separate packaging step.
 Run the tests:
 
 ```bash
-dotnet test BorisClaudeNotifications.Core.Tests
+dotnet test BorisCodeStatus.Core.Tests
 ```
 
 ### Continuous integration
@@ -598,15 +598,15 @@ dotnet build -c Release -p:Version=1.2.3
 
 ```bash
 echo '{"model":{"display_name":"Opus 5"},"rate_limits":{"five_hour":{"used_percentage":42}}}' \
-  | BorisClaudeNotifications.Hooks.exe statusline
+  | BorisCodeStatus.Hooks.exe statusline
 
-echo '{"hook_event_name":"Notification"}' | BorisClaudeNotifications.Hooks.exe notification
+echo '{"hook_event_name":"Notification"}' | BorisCodeStatus.Hooks.exe notification
 
-echo '{"hook_event_name":"SessionStart"}' | BorisClaudeNotifications.Hooks.exe sessionstart
-echo '{"hook_event_name":"SessionEnd"}'   | BorisClaudeNotifications.Hooks.exe sessionend
+echo '{"hook_event_name":"SessionStart"}' | BorisCodeStatus.Hooks.exe sessionstart
+echo '{"hook_event_name":"SessionEnd"}'   | BorisCodeStatus.Hooks.exe sessionend
 ```
 
-Then check `%LOCALAPPDATA%\BorisClaudeNotifications\state.json`, or `curl http://localhost:5080/status` with the
+Then check `%LOCALAPPDATA%\BorisCodeStatus\state.json`, or `curl http://localhost:5080/status` with the
 tray running.
 
 ---
@@ -634,29 +634,29 @@ Reads share every file mode and swallow transient I/O errors.
   installed files and Start Menu shortcut are all removed cleanly, but the `statusLine` and `hooks`
   entries remain and will point at a missing executable. Claude Code tolerates this (the commands
   simply fail), but the entries should be removed by hand, or restored from
-  `settings.json.borisclaudenotifications.bak`. Automating this is a v1.1 item.
+  `settings.json.boriscodestatus.bak`. Automating this is a v1.1 item.
 - **`month_cost_usd` is always `null`.** See above — no data source provides it.
 - **`week_sonnet` depends on an undocumented endpoint** whose response shape is not contractual. The
   client tries several plausible property spellings and returns `null` rather than guessing wrong.
   It may simply never populate.
 - **No authentication on `/status`.** See the security note above.
 - **Running a development build can hijack your real `~/.claude/settings.json`.** The tray registers
-  whatever path it is currently running from. If `BorisClaudeNotifications.Hooks.exe` happens to sit next to the
+  whatever path it is currently running from. If `BorisCodeStatus.Hooks.exe` happens to sit next to the
   tray exe in `bin\Debug\...` or `bin\Release\...`, that throwaway build path is written into your
   global settings — and once the directory is cleaned, every hook silently fails forever, because
   the hook process is deliberately built never to report errors. The symptom is `/status` returning
   `null` for everything with nothing logged anywhere. **This has happened in practice.** Check with:
   ```powershell
-  Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "BorisClaudeNotifications.Hooks.exe"
+  Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "BorisCodeStatus.Hooks.exe"
   ```
   If the path points inside a `bin\` folder, reinstall the MSI or use **Re-register hooks** from the
   tray menu to repoint it. A fix — refusing to register from a `bin\`/`obj\` path, and warning when
   the registered path no longer exists — is a v1.1 item.
 - **The MSI has been installed and verified on a developer machine, not on a clean VM.** Confirmed
   on a real per-user install: `msiexec` exit code 0 with no UAC prompt, product registered and
-  uninstallable, files in `%LOCALAPPDATA%\Programs\BorisClaudeNotifications`, HKCU Run key set, hooks
+  uninstallable, files in `%LOCALAPPDATA%\Programs\BorisCodeStatus`, HKCU Run key set, hooks
   re-registered to the install path automatically, and live session data served from `/status`.
-  What that install did *not* cover: a machine with no prior BorisClaudeNotifications state, and the upgrade and
+  What that install did *not* cover: a machine with no prior BorisCodeStatus state, and the upgrade and
   uninstall paths. Those are still worth exercising on a fresh VM before distributing.
 - **Windows only.** The tray, the installer and the firewall handling are all Windows-specific.
 

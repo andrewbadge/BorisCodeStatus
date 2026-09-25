@@ -12,11 +12,11 @@ known limitations, and it is expected to stay current with each change.
 ## Commands
 
 ```bash
-dotnet build -c Release                       # also produces BorisClaudeNotifications.Installer\bin\Release\BorisClaudeNotifications.msi
+dotnet build -c Release                       # also produces BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi
 dotnet build -c Release -p:Version=1.2.3      # versioned MSI
-dotnet test BorisClaudeNotifications.Core.Tests
-dotnet test BorisClaudeNotifications.Core.Tests --filter "FullyQualifiedName~SessionStatusTests"
-dotnet test BorisClaudeNotifications.Core.Tests --filter "DisplayName~IdleTurnIsStillAnActiveSession"
+dotnet test BorisCodeStatus.Core.Tests
+dotnet test BorisCodeStatus.Core.Tests --filter "FullyQualifiedName~SessionStatusTests"
+dotnet test BorisCodeStatus.Core.Tests --filter "DisplayName~IdleTurnIsStillAnActiveSession"
 ```
 
 Requires the .NET 10 SDK and the WiX v4 CLI (`dotnet tool install --global wix --version 4.0.5`).
@@ -26,7 +26,7 @@ which is a licensing decision, not a technical one.
 Exercising a hook by hand (see README for more verbs):
 
 ```bash
-echo '{"hook_event_name":"Notification"}' | BorisClaudeNotifications.Hooks.exe notification
+echo '{"hook_event_name":"Notification"}' | BorisCodeStatus.Hooks.exe notification
 curl http://localhost:5080/status
 ```
 
@@ -43,9 +43,9 @@ version the installed app disagrees with. To release: raise it, merge, then run 
 Two processes, no IPC between them — they share one JSON file:
 
 ```
-Claude Code ──stdin JSON──▶ BorisClaudeNotifications.Hooks.exe ──writes──▶ %LOCALAPPDATA%\BorisClaudeNotifications\state.json
+Claude Code ──stdin JSON──▶ BorisCodeStatus.Hooks.exe ──writes──▶ %LOCALAPPDATA%\BorisCodeStatus\state.json
                             (runs once per event, exits)                    │ FileSystemWatcher
-                                          BorisClaudeNotifications.Tray.exe ──hosts──▶ GET /status :5080 ◀── ESP32
+                                          BorisCodeStatus.Tray.exe ──hosts──▶ GET /status :5080 ◀── ESP32
 ```
 
 - **Core** — models, `VitalsStateStore` (the shared file, mutex-serialised and atomically written),
@@ -74,7 +74,7 @@ sample in the same change.
 **The hook process must be fast and must never fail.** Claude Code cancels an in-flight statusLine
 script when the next event arrives. So: file I/O only, never network; a 3-second watchdog; and it
 **always exits 0**, even on malformed input or an unknown verb. Never add a throwing path or a
-network call to `BorisClaudeNotifications.Hooks`.
+network call to `BorisCodeStatus.Hooks`.
 
 **Derived values are computed on read, not stored.** `age_seconds`, `resets_in_minutes` and
 `session_status` are get-only properties on the serialised record. The reason is structural: nothing
@@ -109,7 +109,7 @@ Match that register; the existing XML doc comments are the house style.
 - **Running a development build hijacks your real `~/.claude/settings.json`.** The tray registers
   whatever path it is running from, so a `bin\Debug\...` path can end up in your global settings —
   and once cleaned, every hook fails silently forever, because the hook is built never to report
-  errors. Check with `Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "BorisClaudeNotifications.Hooks.exe"`
+  errors. Check with `Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "BorisCodeStatus.Hooks.exe"`
   and repair with the tray's **Re-register hooks**.
 - `/status` is unauthenticated and bound to `0.0.0.0` by design in v1. Do not quietly widen what it
   exposes; it already serves session names and cost to anything on the LAN.
@@ -118,8 +118,8 @@ Match that register; the existing XML doc comments are the house style.
   `api.anthropic.com`, no telemetry. Any change to what is read, stored, served or sent must update
   that section in the same change, or the README starts lying to users. A new bundled dependency
   goes in its *Third-party components* table.
-- `VitalsStateStore.JsonOptions` is `internal` and `BorisClaudeNotifications.Core` grants no `InternalsVisibleTo` —
-  construct local `JsonSerializerOptions(JsonSerializerDefaults.Web)` in tests. (`BorisClaudeNotifications.Tray`
+- `VitalsStateStore.JsonOptions` is `internal` and `BorisCodeStatus.Core` grants no `InternalsVisibleTo` —
+  construct local `JsonSerializerOptions(JsonSerializerDefaults.Web)` in tests. (`BorisCodeStatus.Tray`
   *does* grant it, so its `internal` members are testable.)
 - **Anything time-dependent must take its instant as a parameter, and the whole decision must use
   that one instant.** `DogStates.For(state, now)` mixed an injected clock with `UtcNow` inside

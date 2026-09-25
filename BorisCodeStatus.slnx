@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="BorisCodeStatus.Api/BorisCodeStatus.Api.csproj" />
+  <Project Path="BorisCodeStatus.Core.Tests/BorisCodeStatus.Core.Tests.csproj" />
+  <Project Path="BorisCodeStatus.Core/BorisCodeStatus.Core.csproj" />
+  <Project Path="BorisCodeStatus.Hooks/BorisCodeStatus.Hooks.csproj" />
+  <Project Path="BorisCodeStatus.Installer/BorisCodeStatus.Installer.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" />
+  <Project Path="BorisCodeStatus.Tray/BorisCodeStatus.Tray.csproj" />
+</Solution>

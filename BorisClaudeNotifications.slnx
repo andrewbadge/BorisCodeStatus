@@ -1,8 +1,0 @@
-<Solution>
-  <Project Path="BorisClaudeNotifications.Api/BorisClaudeNotifications.Api.csproj" />
-  <Project Path="BorisClaudeNotifications.Core.Tests/BorisClaudeNotifications.Core.Tests.csproj" />
-  <Project Path="BorisClaudeNotifications.Core/BorisClaudeNotifications.Core.csproj" />
-  <Project Path="BorisClaudeNotifications.Hooks/BorisClaudeNotifications.Hooks.csproj" />
-  <Project Path="BorisClaudeNotifications.Installer/BorisClaudeNotifications.Installer.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" />
-  <Project Path="BorisClaudeNotifications.Tray/BorisClaudeNotifications.Tray.csproj" />
-</Solution>
