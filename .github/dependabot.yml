@@ -1,0 +1,30 @@
+# Weekly dependency update PRs. Updates arrive as pull requests, so build.yml tests each one before
+# anything reaches main; nothing is merged automatically.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # The test packages ship nothing and move together, so one PR rather than four.
+      test-dependencies:
+        patterns:
+          - xunit*
+          - Microsoft.NET.Test.Sdk
+          - coverlet*
+    ignore:
+      # WiX is pinned to 4.0.5 deliberately: v7 requires accepting the Open Source Maintenance Fee
+      # EULA, a licensing decision rather than a technical one. The MSBuild SDK, the extensions and
+      # the CLI installed by the workflows must also stay on the same version, which a package-only
+      # bump would break. Upgrade all of them by hand, together, if ever.
+      - dependency-name: WixToolset.*
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"

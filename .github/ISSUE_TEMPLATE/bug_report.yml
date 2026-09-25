@@ -1,0 +1,72 @@
+name: Bug report
+description: Something in the tray app, the hooks, the installer or /status is not working
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Security problems go through the [security policy](https://github.com/andrewbadge/BorisCodeStatus/security/policy), not here.
+
+        `state.json` and `/status` include session names, project names and cost. Redact anything you would rather not post publicly.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start a Claude Code session
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: BorisCodeStatus version
+      description: Shown at the top of the tray menu.
+      placeholder: "1.2.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+  - type: input
+    id: claude-code
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Tray icon or menu
+        - Hooks / settings.json registration
+        - HTTP service (/status)
+        - Usage figures or quota
+        - Notifications
+        - Installer / upgrade / uninstall
+        - ESP32 display
+        - Other
+  - type: textarea
+    id: hooks
+    attributes:
+      label: Hook registration
+      description: |
+        If state never changes, check whether the hooks are registered and point at the installed copy:
+        `Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "BorisCodeStatus.Hooks.exe"`
+      render: text
+  - type: textarea
+    id: state
+    attributes:
+      label: state.json or /status output (redacted)
+      description: From `%LOCALAPPDATA%\BorisCodeStatus\state.json`, or `curl http://localhost:5080/status` if the HTTP service is on.
+      render: json
