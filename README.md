@@ -1,5 +1,7 @@
 # BorisCodeStatus
 
+<a href="https://buymeacoffee.com/andrewbadge"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="60" width="217"></a>
+
 A small Windows tray app that shows what [Claude Code](https://docs.claude.com/en/docs/claude-code)
 is doing — working, idle, or waiting for your permission — and how much of your usage quota is
 left, and serves the same data over HTTP on your local network so a physical display (an
