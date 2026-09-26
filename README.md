@@ -1,6 +1,36 @@
+<div align="center">
+
 # BorisCodeStatus
 
-<a href="https://buymeacoffee.com/andrewbadge"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="60" width="217"></a>
+**A Windows tray app — and a LAN endpoint for a desk display — that shows what Claude Code is doing and how much quota is left.**
+
+[![Release](https://img.shields.io/github/v/release/andrewbadge/BorisCodeStatus?label=release)](https://github.com/andrewbadge/BorisCodeStatus/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/andrewbadge/BorisCodeStatus/build.yml?branch=main&label=build)](https://github.com/andrewbadge/BorisCodeStatus/actions/workflows/build.yml)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
+![Platform](https://img.shields.io/badge/platform-x64-555)
+![.NET](https://img.shields.io/badge/.NET-10-512BD4)
+[![Licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-blue)](LICENSE)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/andrewbadge)
+
+[Quick start](#quick-start) ·
+[Privacy](#privacy-what-it-reads-and-what-leaves-your-machine) ·
+[How it works](#how-it-works) ·
+[Data sources](#data-sources) ·
+[Projects](#projects) ·
+[The `/status` endpoint](#the-status-endpoint) ·
+[Install](#install) ·
+[Tray icon](#tray-icon) ·
+[HTTP service](#the-http-service-off-by-default) ·
+[Build](#build) ·
+[Design notes](#design-notes) ·
+[Known limitations](#known-limitations) ·
+[Contributing](#contributing) ·
+[License](#license) ·
+[Trademarks](#trademarks)
+
+</div>
+
+---
 
 A small Windows tray app that shows what [Claude Code](https://docs.claude.com/en/docs/claude-code)
 is doing — working, idle, or waiting for your permission — and how much of your usage quota is
