@@ -1,7 +1,10 @@
 name: Build
 
-# Continuous integration: builds and tests on every push to main and every PR into main, and
-# uploads the MSI as a build artifact.
+# Continuous integration: builds and tests on every push to main and every PR into main.
+#
+# The MSI is still built and checked, because the installer project is part of the solution and a
+# broken package should fail the PR rather than surface only when the Release workflow is run. It is
+# not uploaded: nothing consumes a CI build's MSI, and at ~78 MB each the artifacts only ate storage.
 #
 # This workflow never publishes a release. That is the Release workflow, which is run manually.
 # Tags are deliberately NOT a trigger here: the Release workflow creates the tag itself and builds
@@ -12,11 +15,6 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to stamp on the MSI (e.g. 1.2.3). Does not create a release.'
-        required: false
-        default: '1.0.0'
 
 permissions:
   contents: read
@@ -32,7 +30,7 @@ jobs:
     # Windows is not a preference here: the tray app targets net10.0-windows and WiX only runs on Windows.
     runs-on: windows-latest
 
-    # Read-only: this workflow only builds and uploads an artifact. Creating tags and releases is
+    # Read-only: this workflow only builds and tests. Creating tags and releases is
     # the Release workflow's job, and it asks for contents: write there instead.
     permissions:
       contents: read
@@ -52,28 +50,6 @@ jobs:
       - name: Install WiX v4
         run: dotnet tool install --global wix --version 4.0.5
 
-      - name: Determine version
-        id: version
-        shell: pwsh
-        run: |
-          # CI builds are not releases, so the version here is only a placeholder used to stamp the
-          # artifact. The real version is chosen by hand when the Release workflow is run.
-          if ('${{ github.event.inputs.version }}') {
-            $version = '${{ github.event.inputs.version }}'
-          } else {
-            $version = '1.0.0'
-          }
-
-          # MSI ProductVersion must be numeric major.minor.build, so reject anything else early
-          # rather than failing deep inside the WiX build with a less obvious message.
-          if ($version -notmatch '^\d+\.\d+\.\d+$') {
-            Write-Error "Version '$version' is not major.minor.build (e.g. 1.2.3). MSI ProductVersion cannot contain a suffix."
-            exit 1
-          }
-
-          "version=$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Building version $version"
-
       - name: Restore
         run: dotnet restore
 
@@ -81,15 +57,17 @@ jobs:
         run: dotnet test BorisCodeStatus.Core.Tests -c Release --no-restore
 
       # Builds the whole solution, which includes the installer project, so the MSI is a normal
-      # build output rather than a separate packaging step.
+      # build output rather than a separate packaging step. No -p:Version override: the version
+      # comes from Directory.Build.props, as it does for every other build.
       - name: Build MSI
-        run: dotnet build -c Release --no-restore -p:Version=${{ steps.version.outputs.version }}
+        run: dotnet build -c Release --no-restore
 
       - name: Verify the MSI looks right
         shell: pwsh
         run: |
-          # Cheap guard against shipping a package that built but is wrong: confirm the version was
-          # stamped and that both executables actually made it into the payload.
+          # Cheap guard against a package that built but is wrong: confirm both executables actually
+          # made it into the payload. The version is not checked here; the Release workflow does
+          # that against the value it is about to publish.
           $msi = "BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi"
           if (-not (Test-Path $msi)) { throw "MSI was not produced at $msi" }
 
@@ -112,11 +90,6 @@ jobs:
             $rows
           }
 
-          $expected = '${{ steps.version.outputs.version }}'
-          $actual = (Invoke-MsiQuery "SELECT ``Property``, ``Value`` FROM ``Property``" 2 |
-                     Where-Object { $_ -like 'ProductVersion|*' }) -replace '^ProductVersion\|', ''
-          if ($actual -ne $expected) { throw "MSI ProductVersion is '$actual', expected '$expected'" }
-
           $files = Invoke-MsiQuery "SELECT ``FileName`` FROM ``File``" 1
           foreach ($required in @('BorisCodeStatus.Tray.exe', 'BorisCodeStatus.Hooks.exe')) {
             if (-not ($files | Where-Object { $_ -like "*$required" })) { throw "$required is missing from the MSI" }
@@ -128,11 +101,4 @@ jobs:
             throw "ALLUSERS is set - the package would require administrator rights"
           }
 
-          Write-Host "MSI verified: version $actual, $($files.Count) files, per-user scope"
-
-      - name: Upload MSI artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: BorisCodeStatus-${{ steps.version.outputs.version }}-msi
-          path: BorisCodeStatus.Installer/bin/Release/BorisCodeStatus.msi
-          if-no-files-found: error
+          Write-Host "MSI verified: $($files.Count) files, per-user scope"

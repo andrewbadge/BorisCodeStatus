@@ -586,7 +586,8 @@ dotnet test BorisCodeStatus.Core.Tests
 ### Continuous integration
 
 `.github/workflows/build.yml` builds and tests on every push to `main` and every pull request into
-`main`, and uploads the MSI as a build artifact. It never publishes a release.
+`main`. It builds and verifies the MSI too, so a broken installer fails the PR rather than the
+release, but does not upload it — nothing uses a CI build's MSI. It never publishes a release.
 
 Pushing repeatedly to a PR cancels the superseded run, so a burst of commits costs one build rather
 than several. Runs on `main` are never cancelled, so every merged commit keeps its own result.
@@ -638,24 +639,6 @@ expensive to discover afterwards:
 The built MSI is then checked before publishing: the version was stamped, both executables are in
 the payload, and `ALLUSERS` is unset — that last one is a regression guard, because setting it would
 quietly turn this back into a package that demands administrator rights.
-
-### Artifact cleanup
-
-Each build artifact is around 78 MB, so they dominate the repository's storage quota within days.
-`.github/workflows/cleanup-artifacts.yml` prunes them **daily** at 17:00 UTC — daily rather than
-weekly purely because of that size, since the job itself is only a few API calls.
-
-It deletes artifacts older than 7 days but always keeps the 3 most recent whatever their age, so
-there is always something downloadable. It only ever touches workflow *artifacts*: release assets
-are a separate API and are never considered, so a published release cannot be affected.
-
-Run it by hand from the Actions tab to override the retention, or with **dry run** ticked to see
-what would go without deleting anything.
-
-Worth setting alongside it: GitHub's repository-level artifact retention (Settings → Actions →
-General) defaults to 90 days. Lowering it to 7–14 days gives the same result without any workflow
-running, and the two are complementary — the workflow additionally guarantees the most recent few
-survive.
 
 To build a versioned MSI locally:
 
