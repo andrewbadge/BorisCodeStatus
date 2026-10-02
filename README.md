@@ -442,23 +442,26 @@ restart Claude Code before investigating further.
 
 ## Tray icon
 
-An 8-bit dog — Fido — inside a quota ring. Drawn at runtime rather than shipped as `.ico` assets,
+An 8-bit dog — Fido — over a quota ring. Drawn at runtime rather than shipped as `.ico` assets,
 so it encodes live data:
 
 | Pose | When | Accent |
 |---|---|---|
-| **Running**, tongue out | `activity` is `Working` | orange `#D97757` |
-| **Sitting**, alert | `activity` is `Idle` | green `#6FA96A` |
-| **Ears up** | `activity` is `Waiting` — a permission prompt | amber `#E8B04B` |
-| **Curled up**, eyes closed | Idle for 5 minutes, or no/ended session | slate `#7A8AA3` |
+| Blue square badge | `activity` is `Working` | blue `#6CC6F0` |
+| No badge, plain face | `activity` is `Idle` | — |
+| Amber **!** badge | `activity` is `Waiting` — a permission prompt | amber `#F5B942` |
+| Eyes shut, **Z** badge | Idle for 5 minutes, or no/ended session | lavender `#C8C8D7` |
 
-The **surrounding ring** is the five-hour session quota used, turning red past 80%.
+The **ring behind the dog** is the five-hour session quota used: green below 50%, amber from 50% to
+75%, red above 75%.
 
 The sprites live in `DogSprites.cs` as palette-index grids, one character per pixel, transcribed
-from the design's 20px sheets. Kept as data in source rather than as image files so there are no
-binaries in the repo and the glyph stays diffable. 20px is the largest sprite that clears the ring
-on a 32px canvas; grow either and the ring clips the ears and the accent block. Pixels are blitted
-1:1 with `SetPixel` — any scaling or interpolation destroys pixel art.
+from the design's 16px tray icons. Kept as data in source rather than as image files so there are no
+binaries in the repo and the glyph stays diffable. The icon is drawn at the tray's real
+small-icon size so Windows never resamples it, and the dog fills it like any other tray icon; the
+ring sits behind and shows in the gaps. The design's 32px and 64px icons are exactly the 16px one
+doubled and quadrupled, so larger sizes are whole-pixel integer scales — any interpolation
+destroys pixel art. At 125%/150% scaling the dog stays 16px with a margin.
 
 ### The application icon
 
@@ -466,9 +469,9 @@ Separate from the tray glyph, `BorisCodeStatus.Tray/fido.ico` is what Explorer, 
 and Installed Apps show. It is the one committed binary in the project: the toolchain's
 `ApplicationIcon` takes a file path, not pixel data, so the `DogSprites` approach does not apply.
 
-It packs the design's 16/20/24/32/48/64/256 sheets into one file so Windows always has an exact
-size and never resamples. It uses the **orange** variant, because at this size the accent reads as
-the brand colour rather than as a state. The Start Menu shortcut carries no `Icon` attribute — it
+It packs the design's 16/24/32/48/64/256 icons into one file so Windows always has an exact
+size and never resamples. It uses the badge-less **idle** face, because a state badge means nothing
+on a static icon. The Start Menu shortcut carries no `Icon` attribute — it
 inherits the icon compiled into the executable — while `ARPPRODUCTICON` points the Installed Apps
 entry at the same file.
 
