@@ -92,7 +92,9 @@ in it or on `/status`. The file always marks the **non-default** setting, so a m
 preference yields the default and there is no first-run write — hence `http-enabled.flag` (default
 off, because `/status` is unauthenticated and LAN-wide) and `notifications-disabled.flag` (default
 on), and `usage-api-enabled.flag` (default off — the only outbound call and the only reader of the
-OAuth token must be opted into). All live under the tray's **Settings** submenu; **Advanced** is for
+OAuth token must be opted into). The one preference with a value, the waiting card's click target,
+follows the same rule with content: `card-click-app.txt` holds a process name, and its absence
+means "just dismiss" (`ClickTargetPreference`). All live under the tray's **Settings** submenu; **Advanced** is for
 one-off actions and repairs.
 
 **`Refresh` runs on every state write *and* every pose-timer tick.** Anything with a side effect —

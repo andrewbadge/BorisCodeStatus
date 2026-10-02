@@ -102,6 +102,8 @@ internal sealed class TrayIcon : IDisposable
         settings.DropDownItems.Add(_httpItem);
         settings.DropDownItems.Add(_usageApiItem);
 
+        settings.DropDownItems.Add(new ToolStripMenuItem("When notification is clicked...", null, (_, _) => ChooseClickTarget()));
+
         var advanced = new ToolStripMenuItem("Advanced");
         advanced.DropDownItems.Add(new ToolStripMenuItem("Open in Browser", null, (_, _) => OpenDashboard()));
         advanced.DropDownItems.Add(new ToolStripMenuItem("Re-register hooks", null, (_, _) => ReRegisterHooks()));
@@ -270,8 +272,41 @@ internal sealed class TrayIcon : IDisposable
     /// </summary>
     private void ShowWaitingCard(WaitingPrompt prompt)
     {
-        _waitingCard ??= new WaitingCard();
+        if (_waitingCard is null)
+        {
+            _waitingCard = new WaitingCard();
+            _waitingCard.Click += (_, _) => BringClickTargetToFront();
+        }
+
         _waitingCard.ShowPrompt(prompt);
+    }
+
+    /// <summary>
+    /// The card dismisses itself on click; this adds the optional jump to the chosen app. Read at
+    /// the moment of use, like the notification setting, so a change applies to the next click.
+    /// </summary>
+    private void BringClickTargetToFront()
+    {
+        if (ClickTargetPreference.Get() is not { } app || WindowActivator.BringToFront(app))
+        {
+            return;
+        }
+
+        ShowBalloon($"{app} is not running, so there was nothing to bring to the front.", ToolTipIcon.Info);
+    }
+
+    private void ChooseClickTarget()
+    {
+        using var dialog = new ClickTargetDialog(ClickTargetPreference.Get());
+        if (dialog.ShowDialog() != DialogResult.OK)
+        {
+            return;
+        }
+
+        if (!ClickTargetPreference.TrySet(dialog.ProcessName))
+        {
+            ShowBalloon("That preference could not be saved.", ToolTipIcon.Warning);
+        }
     }
 
     private void UpdateIcon(VitalsState state)

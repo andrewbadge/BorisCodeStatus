@@ -103,6 +103,9 @@ Worth knowing before you install anything that hooks into Claude Code:
   authentication**. That includes session names and cost. Read the
   security note under [The `/status` endpoint](#the-status-endpoint) before using it on a network you do
   not trust.
+- **It lists your open apps** — process names and their executable descriptions — only when you
+  open **Settings → When notification is clicked…**, to offer them as choices. It keeps nothing
+  from that list but the one process name you pick, and never sends or serves it.
 - **It writes** `%LOCALAPPDATA%\BorisCodeStatus\` (state and preferences) and adds entries
   to `~/.claude/settings.json`, after backing that file up once.
 - There is no telemetry, no analytics and no update check.
@@ -491,7 +494,9 @@ clicking it opens the GitHub repository), then a status line and the current ses
 figures (display-only), then **Settings**, **Advanced** and **Exit**. The status line reads like
 *Status: Idle · HTTP off · notify on* — the activity plus both settings, since neither setting is
 visible anywhere else. **Settings** holds the persisted preferences — **Notify when waiting**,
-**Enable HTTP service** and **Use usage API for Sonnet quota**, each ticked when on. **Advanced** holds one-off actions and repairs —
+**Enable HTTP service** and **Use usage API for Sonnet quota**, each ticked when on — and **When
+notification is clicked…**, a dialog that picks the app the waiting card brings forward (see below).
+**Advanced** holds one-off actions and repairs —
 **Open in Browser** (opens `/status`), **Re-register hooks**, **Fix firewall access…** — so the
 top level is only what you came to read.
 Double-clicking the icon still opens `/status`, keeping a shortcut on the common action.
@@ -512,6 +517,11 @@ layout belongs to Windows, so none of that is possible there. Details worth know
 
 - **It never takes focus.** It is a non-activating tool window (no taskbar button), so it cannot
   swallow keystrokes meant for the terminal. Clicking it dismisses it; it cannot answer the prompt.
+  **Settings → When notification is clicked…** opens a dialog that can also make the click bring an app to the front —
+  your terminal, a browser, anything with a window open. It is **off by default** (*Just
+  dismiss*). The dialog lists the apps open at that moment; the choice is stored as a process
+  name in `card-click-app.txt`, so it still works after the app restarts. With several windows of
+  that app open, the first one Windows reports is the one that comes forward.
   `Y / N` beside the bar says what Claude is asking, not a key to press on the card.
 - **The bar is a countdown** — 12 seconds, held while the pointer is over the card — and the card
   **disappears as soon as the prompt is answered**, because leaving `Waiting` dismisses it.

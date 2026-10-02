@@ -33,6 +33,12 @@ public static class VitalsPaths
     public static string NotificationsDisabledFlagFile =>
         Path.Combine(DataDirectory, "notifications-disabled.flag");
 
+    /// <summary>
+    /// Holds the process name of the app a click on the waiting card brings forward. Absent by
+    /// default, when a click only dismisses the card. See <see cref="ClickTargetPreference"/>.
+    /// </summary>
+    public static string ClickTargetFile => Path.Combine(DataDirectory, "card-click-app.txt");
+
     /// <summary>~\.claude</summary>
     public static string ClaudeDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
