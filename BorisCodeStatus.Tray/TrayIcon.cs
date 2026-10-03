@@ -17,21 +17,26 @@ namespace BorisCodeStatus.Tray;
 internal sealed class TrayIcon : IDisposable
 {
     /// <summary>Where the menu header points: the public source repository.</summary>
-    private const string RepositoryUrl = "https://github.com/andrewbadge/BorisCodeStatus";
+    internal const string RepositoryUrl = "https://github.com/andrewbadge/BorisCodeStatus";
 
     private readonly NotifyIcon _notifyIcon;
     private readonly VitalsStateStore _store;
     private readonly VitalsApiHost _api;
-    private readonly ToolStripMenuItem _httpItem;
-    private readonly ToolStripMenuItem _notificationsItem;
-    private readonly ToolStripMenuItem _usageApiItem;
-    private readonly ToolStripMenuItem _firewallItem;
     private readonly int _port;
     private readonly SynchronizationContext _uiContext;
 
-    private readonly ToolStripMenuItem _sessionItem;
-    private readonly ToolStripMenuItem _weekItem;
-    private readonly ToolStripMenuItem _activityItem;
+    // The preferences, as they stand in this process. Each is read from disk once at startup and
+    // kept in step by its toggle, so Refresh — every state write — never touches the disk for them.
+    private bool _notificationsOn;
+    private bool _usageApiOn;
+    private bool _statusPinned;
+    private bool _statusMini;
+
+    /// <summary>True while the HTTP service is starting or stopping, so the switch cannot race it.</summary>
+    private bool _httpBusy;
+
+    /// <summary>The settings window while it is open; it replaces the old context menu.</summary>
+    private SettingsWindow? _settings;
 
     /// <summary>
     /// Drives the dog to sleep after a quiet spell. Nothing writes to the state file while a
@@ -54,6 +59,7 @@ internal sealed class TrayIcon : IDisposable
 
     /// <summary>The waiting notification. Null until the first one is shown.</summary>
     private WaitingCard? _waitingCard;
+    private WaitingCard? _statusCard;
 
     private bool _disposed;
 
@@ -67,67 +73,20 @@ internal sealed class TrayIcon : IDisposable
         // file watcher) can be marshalled back before touching NotifyIcon.
         _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
 
-        _sessionItem = new ToolStripMenuItem("Session: —") { Enabled = false };
-        _weekItem = new ToolStripMenuItem("Week: —") { Enabled = false };
-        _activityItem = new ToolStripMenuItem("Status: —") { Enabled = false };
+        _notificationsOn = NotificationPreference.AreEnabled();
+        _usageApiOn = UsageApiPreference.IsEnabled();
+        _statusPinned = StatusCardPreference.IsPinned();
+        _statusMini = StatusCardPreference.IsMini();
 
-        // Checked-state toggle rather than a label that flips between Start and Stop: the tick
-        // says what is true now, where a verb only says what the click will do.
-        _httpItem = new ToolStripMenuItem("Enable HTTP service", null, (_, _) => ToggleHttp())
-        {
-            CheckOnClick = false,
-        };
-
-        // Enabled by default; the tick reflects what is stored, not what a click will do.
-        _notificationsItem = new ToolStripMenuItem("Notify when waiting", null, (_, _) => ToggleNotifications())
-        {
-            Checked = NotificationPreference.AreEnabled(),
-            CheckOnClick = false,
-        };
-
-        // Off by default — see UsageApiPreference. Only feeds /status, so it has no effect while
-        // the HTTP service is off, but it stays clickable: choosing it up front is reasonable.
-        _usageApiItem = new ToolStripMenuItem("Use usage API for Sonnet quota", null, (_, _) => ToggleUsageApi())
-        {
-            Checked = UsageApiPreference.IsEnabled(),
-            CheckOnClick = false,
-        };
-
-        // Everything actionable sits in a submenu: the top level is then purely the current
-        // figures, which is what someone opening the menu is almost always here to read.
-        // Settings holds the persisted preferences; Advanced holds one-off actions and repairs.
-        // Double-clicking the icon still opens the browser, so the common action keeps a shortcut.
-        var settings = new ToolStripMenuItem("Settings");
-        settings.DropDownItems.Add(_notificationsItem);
-        settings.DropDownItems.Add(_httpItem);
-        settings.DropDownItems.Add(_usageApiItem);
-
-        settings.DropDownItems.Add(new ToolStripMenuItem("When notification is clicked...", null, (_, _) => ChooseClickTarget()));
-
-        var advanced = new ToolStripMenuItem("Advanced");
-        advanced.DropDownItems.Add(new ToolStripMenuItem("Open in Browser", null, (_, _) => OpenDashboard()));
-        advanced.DropDownItems.Add(new ToolStripMenuItem("Re-register hooks", null, (_, _) => ReRegisterHooks()));
-        // Greyed out while the HTTP service is off (see Refresh): with nothing listening there is
-        // nothing for a rule to let through, and adding one would open the firewall for no reason.
-        _firewallItem = new ToolStripMenuItem("Fix firewall access...", null, (_, _) => FixFirewallAccess());
-        advanced.DropDownItems.Add(_firewallItem);
-
-        // Header: what is running, and a way to get to the source. Left enabled so it can be
-        // clicked — under the GPL, the way to the source is worth keeping one click away.
-        var titleItem = new ToolStripMenuItem($"BorisCodeStatus v{BuildVersion}", null, (_, _) => OpenUrl(RepositoryUrl))
+        // A short menu that opens instantly; everything else lives in the settings window. The
+        // header is the version and links to the source — under the GPL, worth keeping one click away.
+        var menu = new ContextMenuStrip();
+        menu.Items.Add(new ToolStripMenuItem($"BorisCodeStatus v{Version}", null, (_, _) => OpenUrl(RepositoryUrl))
         {
             Font = new Font(SystemFonts.MenuFont ?? SystemFonts.DefaultFont, FontStyle.Bold),
-        };
-
-        var menu = new ContextMenuStrip();
-        menu.Items.Add(titleItem);
+        });
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(_activityItem);
-        menu.Items.Add(_sessionItem);
-        menu.Items.Add(_weekItem);
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(settings);
-        menu.Items.Add(advanced);
+        menu.Items.Add(new ToolStripMenuItem("Settings...", null, (_, _) => ShowSettings()));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Exit", null, (_, _) => Application.Exit()));
 
@@ -137,7 +96,20 @@ internal sealed class TrayIcon : IDisposable
             Visible = true,
             Text = "BorisCodeStatus",
         };
-        _notifyIcon.DoubleClick += (_, _) => OpenDashboard();
+
+        // With an app chosen for the waiting card, the icon is a shortcut to it too; without one,
+        // it shows the status card. Read at the moment of use, like the card's own click.
+        _notifyIcon.DoubleClick += (_, _) =>
+        {
+            if (ClickTargetPreference.Get() is null)
+            {
+                ShowStatusCard(_store.Current);
+            }
+            else
+            {
+                BringClickTargetToFront();
+            }
+        };
 
         Refresh(_store.Current);
 
@@ -187,7 +159,7 @@ internal sealed class TrayIcon : IDisposable
 
                     ShowBalloon(
                         $"Your display probably cannot reach this PC, because {reason}. " +
-                        "Right-click here and choose \"Fix firewall access\".",
+                        "Right-click here and choose Settings, then Advanced, then Fix firewall access.",
                         ToolTipIcon.Warning);
                 },
                 null);
@@ -203,22 +175,19 @@ internal sealed class TrayIcon : IDisposable
             return;
         }
 
-        var listening = _api.IsListening;
-
-        // Both settings are invisible from the outside — the tray icon looks identical and the
-        // display just goes dark, or a prompt simply goes unannounced — so the status line carries
-        // them alongside the activity. The tooltip deliberately does not: with the service off by
-        // default, flagging it there would replace the usage figures most of the time.
-        var http = listening ? "HTTP on" : "HTTP off";
-        var notify = _notificationsItem.Checked ? "notify on" : "notify off";
-        _activityItem.Text = $"Status: {Describe(state)} · {http} · {notify}";
-        _sessionItem.Text = $"Session (5h): {FormatWindow(state.Session)}";
-        _weekItem.Text = $"Week (7d): {FormatWindow(state.Week)}";
         _notifyIcon.Text = BuildTooltip(state);
-        _httpItem.Checked = listening;
-        _firewallItem.Enabled = listening;
 
         UpdateIcon(state);
+
+        // The window shows the HTTP and notify settings alongside the activity, since neither is
+        // visible from outside: the icon looks the same, the display just goes dark.
+        _settings?.RefreshFromTray();
+
+        if (_statusPinned)
+        {
+            ShowStatusCard(state);
+        }
+
         NotifyIfWaitingForInput(state);
     }
 
@@ -295,19 +264,150 @@ internal sealed class TrayIcon : IDisposable
         ShowBalloon($"{app} is not running, so there was nothing to bring to the front.", ToolTipIcon.Info);
     }
 
-    private void ChooseClickTarget()
+    /// <summary>
+    /// The current status on the display card, for a double-click on the icon. Its own instance,
+    /// not the waiting card's: <see cref="NotifyIfWaitingForInput"/> dismisses that one on every
+    /// non-waiting refresh, which would close this the moment it opened. Unpinned it is a snapshot
+    /// that hides itself like the waiting card; pinned, <see cref="Refresh"/> calls this on every
+    /// state write and pose tick, so it stays current where the user dragged it.
+    /// </summary>
+    private void ShowStatusCard(VitalsState state)
     {
-        using var dialog = new ClickTargetDialog(ClickTargetPreference.Get());
-        if (dialog.ShowDialog() != DialogResult.OK)
+        var dog = DogStates.For(state, DateTimeOffset.UtcNow);
+        var accent = AccentFor(dog);
+
+        var session = state.Session?.UsedPercentage;
+        var title = session is { } used ? $"5h {used.ToString("0", CultureInfo.CurrentCulture)}% used" : "No usage yet";
+
+        var detail = new List<string>();
+        if (state.Session?.ResetsInMinutes is { } resets)
         {
-            return;
+            detail.Add($"Resets in {FormatDuration(resets)}");
         }
 
-        if (!ClickTargetPreference.TrySet(dialog.ProcessName))
+        detail.Add($"Week: {FormatWindow(state.Week)}");
+        if (state.ModelDisplayName is { } model)
         {
-            ShowBalloon("That preference could not be saved.", ToolTipIcon.Warning);
+            detail.Add(model);
+        }
+
+        detail.Add($"{(_api.IsListening ? "HTTP on" : "HTTP off")} · {(_notificationsOn ? "notify on" : "notify off")}");
+
+        if (_statusCard is null)
+        {
+            _statusCard = new WaitingCard();
+
+            _statusCard.PinnedDoubleClicked += (_, _) => BringClickTargetToFront();
+
+            // Closing a pinned card means "put it away": unpin, or the next refresh brings it back.
+            _statusCard.CloseClicked += (_, _) =>
+            {
+                if (_statusPinned)
+                {
+                    ToggleStatusPinned();
+                }
+            };
+
+            // End of a drag (ResizeEnd covers moves too). Saved as left, not clamped: it is kept on
+            // screen when next used, against whatever monitors are there then.
+            _statusCard.ResizeEnd += (_, _) =>
+            {
+                var at = _statusCard.Location;
+                _statusCard.PinnedLocation = at;
+                StatusCardPreference.TrySavePosition(at.X, at.Y);
+            };
+        }
+
+        _statusCard.Pinned = _statusPinned;
+        _statusCard.Mini = _statusMini;
+        if (_statusCard.PinnedLocation is null && StatusCardPreference.GetPosition() is { } saved)
+        {
+            _statusCard.PinnedLocation = new Point(saved.X, saved.Y);
+        }
+
+        _statusCard.ShowContent(new CardContent(
+            dog.ToString(),
+            accent,
+            title,
+            string.Join("\n", detail),
+            Hint: session is null ? null : "5H",
+            Dog: dog,
+            Gauge: session ?? 0));
+    }
+
+    /// <summary>Pins the status card on screen, or lets it go back to a self-hiding snapshot.</summary>
+    internal void ToggleStatusPinned()
+    {
+        var pinned = !_statusPinned;
+        _statusPinned = pinned;
+
+        if (pinned)
+        {
+            ShowStatusCard(_store.Current);
+        }
+        else if (_statusCard is not null)
+        {
+            _statusCard.Pinned = false;
+            _statusCard.Dismiss();
+        }
+
+        if (!StatusCardPreference.TrySetPinned(pinned))
+        {
+            ShowBalloon("That preference could not be saved, so it will not survive a restart.", ToolTipIcon.Warning);
         }
     }
+
+    /// <summary>
+    /// Switches the status card between full and mini. Redrawn at once if it is up, so the change
+    /// is visible; a pinned card keeps its top-left corner, pulled on screen if the new size needs it.
+    /// </summary>
+    internal void ToggleStatusMini()
+    {
+        var mini = !_statusMini;
+        _statusMini = mini;
+
+        if (_statusCard is { Visible: true })
+        {
+            ShowStatusCard(_store.Current);
+        }
+
+        if (!StatusCardPreference.TrySetMini(mini))
+        {
+            ShowBalloon("That preference could not be saved, so it will not survive a restart.", ToolTipIcon.Warning);
+        }
+    }
+
+    /// <summary>Opens the settings window, or brings the open one forward — never a second copy.</summary>
+    private void ShowSettings()
+    {
+        if (_settings is null)
+        {
+            _settings = new SettingsWindow(this);
+            // Closing a modeless form disposes it; only the reference needs dropping.
+            _settings.FormClosed += (_, _) => _settings = null;
+            _settings.Show();
+        }
+
+        _settings.Activate();
+    }
+
+    // What the settings window reads. It holds no state of its own.
+    internal VitalsState State => _store.Current;
+    internal bool HttpOn => _api.IsListening;
+    internal bool HttpBusy => _httpBusy;
+    internal bool NotificationsOn => _notificationsOn;
+    internal bool UsageApiOn => _usageApiOn;
+    internal bool StatusPinned => _statusPinned;
+    internal bool StatusMini => _statusMini;
+
+    /// <summary>The accent for a pose: the colour of its tray badge, orange for the badge-less idle face.</summary>
+    internal static Color AccentFor(DogState dog) => DogSprites.TrayPalette[dog switch
+    {
+        DogState.Working => 5,
+        DogState.Waiting => 6,
+        DogState.Sleeping => 7,
+        _ => 3,
+    }];
 
     private void UpdateIcon(VitalsState state)
     {
@@ -353,7 +453,7 @@ internal sealed class TrayIcon : IDisposable
             : text;
     }
 
-    private static string FormatDuration(int minutes) => minutes switch
+    internal static string FormatDuration(int minutes) => minutes switch
     {
         < 60 => $"{minutes}m",
         < 60 * 24 => $"{minutes / 60}h {minutes % 60}m",
@@ -387,7 +487,7 @@ internal sealed class TrayIcon : IDisposable
     /// Persisted either way, so the choice survives a restart; see <see cref="HttpPreference"/>
     /// for why off is the default.
     /// </summary>
-    private void ToggleHttp()
+    internal void ToggleHttp()
     {
         var enabling = !_api.IsListening;
 
@@ -402,7 +502,8 @@ internal sealed class TrayIcon : IDisposable
         // Off the UI thread, and not merely to keep the menu painting: stopping Kestrel takes
         // long enough to be felt, and the tray must stay responsive throughout. The item is
         // disabled meanwhile so a second click cannot start a competing transition.
-        _httpItem.Enabled = false;
+        _httpBusy = true;
+        _settings?.RefreshFromTray();
 
         Task.Run(() =>
         {
@@ -437,7 +538,7 @@ internal sealed class TrayIcon : IDisposable
                         return;
                     }
 
-                    _httpItem.Enabled = true;
+                    _httpBusy = false;
 
                     var failure = task.IsFaulted ? task.Exception?.GetBaseException().Message : task.Result;
                     if (failure is not null)
@@ -478,10 +579,10 @@ internal sealed class TrayIcon : IDisposable
     /// Turns the waiting notification on or off. Cheap enough to do inline on the UI thread —
     /// it is one small file write, unlike the HTTP toggle, which starts or stops a web host.
     /// </summary>
-    private void ToggleNotifications()
+    internal void ToggleNotifications()
     {
-        var enabled = !_notificationsItem.Checked;
-        _notificationsItem.Checked = enabled;
+        var enabled = !_notificationsOn;
+        _notificationsOn = enabled;
         Refresh(_store.Current);
 
         if (!NotificationPreference.TrySetEnabled(enabled))
@@ -512,10 +613,10 @@ internal sealed class TrayIcon : IDisposable
     /// does not. Switching off also clears what it fetched from <c>state.json</c>: the endpoint
     /// already hides those fields, but a value the user has opted out of should not linger on disk.
     /// </summary>
-    private void ToggleUsageApi()
+    internal void ToggleUsageApi()
     {
-        var enabled = !_usageApiItem.Checked;
-        _usageApiItem.Checked = enabled;
+        var enabled = !_usageApiOn;
+        _usageApiOn = enabled;
 
         var persisted = UsageApiPreference.TrySetEnabled(enabled);
 
@@ -533,9 +634,9 @@ internal sealed class TrayIcon : IDisposable
         }
     }
 
-    private void OpenDashboard() => OpenUrl($"http://localhost:{_port}/status");
+    internal void OpenDashboard() => OpenUrl($"http://localhost:{_port}/status");
 
-    private void OpenUrl(string url)
+    internal void OpenUrl(string url)
     {
         try
         {
@@ -552,7 +653,7 @@ internal sealed class TrayIcon : IDisposable
     /// that carries the value from Directory.Build.props; anything after a '+' is build metadata
     /// the user has no use for.
     /// </summary>
-    private static string BuildVersion
+    internal static string Version
     {
         get
         {
@@ -573,7 +674,7 @@ internal sealed class TrayIcon : IDisposable
     /// Re-runs the settings.json merge. Useful after an upgrade moves the install path, or if the
     /// user edited settings.json by hand and dropped the hook entries.
     /// </summary>
-    private void ReRegisterHooks()
+    internal void ReRegisterHooks()
     {
         try
         {
@@ -598,7 +699,7 @@ internal sealed class TrayIcon : IDisposable
     /// run the fix elevated (if an administrator is available), or copy the command to send to
     /// whoever administers the machine. Re-runnable at any time — the fix is idempotent.
     /// </summary>
-    private void FixFirewallAccess()
+    internal void FixFirewallAccess()
     {
         var verdict = FirewallGuard.Detect(_port);
 
@@ -687,7 +788,7 @@ internal sealed class TrayIcon : IDisposable
             "The firewall state could not be determined. Applying the rule is harmless either way.",
     };
 
-    private void ShowBalloon(string message, ToolTipIcon icon, string? title = null)
+    internal void ShowBalloon(string message, ToolTipIcon icon, string? title = null)
     {
         _notifyIcon.BalloonTipTitle = title ?? "BorisCodeStatus";
         _notifyIcon.BalloonTipText = message;
@@ -707,6 +808,8 @@ internal sealed class TrayIcon : IDisposable
         _poseTimer.Stop();
         _poseTimer.Dispose();
         _waitingCard?.Dispose();
+        _statusCard?.Dispose();
+        _settings?.Dispose();
         _waitingCard = null;
 
         // Hide before disposing, or the icon lingers in the tray until the user hovers over it.

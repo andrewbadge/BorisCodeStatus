@@ -27,6 +27,24 @@ internal static class Program
             return;
         }
 
+        // Every exception that reaches the top, from any thread, goes to error.log. On the UI thread
+        // WinForms would otherwise show its "Unhandled exception" dialog and carry on, leaving no
+        // record; here it is logged and the tray keeps running, which is what that dialog's Continue
+        // did anyway. Must be set before the first window exists.
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, e) => ErrorLog.Write("tray UI thread", e.Exception);
+
+        // Off the UI thread there is no recovering — the runtime terminates — so this only records why.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            ErrorLog.Write("tray background thread (fatal)", e.ExceptionObject as Exception);
+
+        // A faulted Task nobody awaited, e.g. a fire-and-forget Task.Run.
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            ErrorLog.Write("tray unobserved task", e.Exception);
+            e.SetObserved();
+        };
+
         ApplicationConfiguration.Initialize();
 
         var options = VitalsApiOptions.FromEnvironment();

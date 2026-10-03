@@ -55,7 +55,9 @@ internal static class Program
         }
         catch (Exception ex)
         {
+            // Still exit 0 — but leave a record, since stderr is only visible in debug output.
             Console.Error.WriteLine($"BorisCodeStatus: {ex.Message}");
+            ErrorLog.Write($"hook {(args.Length > 0 ? args[0] : "(no verb)")}", ex);
             return 0;
         }
     }

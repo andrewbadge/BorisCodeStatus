@@ -1,5 +1,7 @@
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using BorisCodeStatus.Core.Models;
 
 namespace BorisCodeStatus.Tray;
 
@@ -15,6 +17,10 @@ namespace BorisCodeStatus.Tray;
 /// tool window: no taskbar button, no focus on show or on click. A click dismisses it.
 ///
 /// The bar counts down to the card hiding itself, and holds while the pointer is over the card.
+///
+/// A second instance is the status card that double-clicking the tray icon shows: the tray dog in
+/// its current pose, the quota figures, and a bar that is the session gauge rather than a
+/// countdown. <see cref="CardContent"/> carries the difference.
 ///
 /// All layout is in the design's 96-DPI pixels and scaled to the monitor. The sprite and the pixel
 /// font are the exception: they snap to a whole number of device pixels per design pixel, because
@@ -47,13 +53,18 @@ internal sealed class WaitingCard : Form
     private const int BarHeight = 6;
     private const int ScreenMarginFromTaskbar = 12;
 
-    private static readonly Color BorderColor = Color.FromArgb(0x3A, 0x36, 0x2B);
-    private static readonly Color FrameColor = Color.FromArgb(0x0C, 0x0B, 0x08);
-    private static readonly Color ScreenColor = Color.FromArgb(0x14, 0x12, 0x0C);
-    private static readonly Color MutedColor = Color.FromArgb(0x9A, 0x93, 0x84);
-    private static readonly Color TitleColor = DogSprites.Palette[2];
-    private static readonly Color AccentColor = DogSprites.Palette[DogSprites.BangIndex];
-    private static readonly Color BarTrackColor = Color.FromArgb(0x2A, 0x27, 0x1F);
+    // The mini status card: two thirds of the full card's width, a fifth of its height, with a
+    // thinner frame so the screen keeps most of what little room there is.
+    private const int MiniWidth = 236;
+    private const int MiniHeight = 56;
+    private const int MiniFrame = 4;
+
+    internal static readonly Color BorderColor = Color.FromArgb(0x3A, 0x36, 0x2B);
+    internal static readonly Color FrameColor = Color.FromArgb(0x0C, 0x0B, 0x08);
+    internal static readonly Color ScreenColor = Color.FromArgb(0x14, 0x12, 0x0C);
+    internal static readonly Color MutedColor = Color.FromArgb(0x9A, 0x93, 0x84);
+    internal static readonly Color TitleColor = DogSprites.Palette[2];
+    internal static readonly Color BarTrackColor = Color.FromArgb(0x2A, 0x27, 0x1F);
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
@@ -61,7 +72,7 @@ internal sealed class WaitingCard : Form
 
     private readonly System.Windows.Forms.Timer _ticker = new() { Interval = 50 };
     private Font? _detailFont;
-    private WaitingPrompt _prompt = WaitingPrompt.From(null);
+    private CardContent _content = CardContent.From(WaitingPrompt.From(null));
     private TimeSpan _remaining;
     private DateTime _lastTick;
     private DateTime _shownAt;
@@ -108,10 +119,173 @@ internal sealed class WaitingCard : Form
 
     private int SpritePixelSize => Math.Max(1, (int)Math.Round(SpritePixel * DpiScale));
 
-    /// <summary>Shows the card, or refreshes it in place if it is already up.</summary>
-    public void ShowPrompt(WaitingPrompt prompt)
+    private bool _pinned;
+
+    /// <summary>
+    /// A pinned card stays up until unpinned, and is dragged rather than clicked: it does not count
+    /// down, and grabbing it anywhere moves it. Still never takes focus.
+    /// </summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public bool Pinned
     {
-        _prompt = prompt;
+        get => _pinned;
+        set
+        {
+            _pinned = value;
+            Cursor = value ? Cursors.SizeAll : Cursors.Hand;
+        }
+    }
+
+    /// <summary>
+    /// Where a pinned card goes when it is next shown, before being kept on screen. Null puts it
+    /// in the corner like the waiting card. Once it is up, it stays where the user drags it.
+    /// </summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Point? PinnedLocation { get; set; }
+
+    /// <summary>The small status card: dog, state, 5-hour figure and gauge only. Applied at the next show.</summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public bool Mini { get; set; }
+
+    private const int WM_NCHITTEST = 0x0084;
+    private const int HTCAPTION = 2;
+
+    /// <summary>
+    /// Pinned, the whole card reports itself as a title bar, so Windows does the dragging —
+    /// including snapping between monitors and the DPI change on the way. Unpinned it stays a
+    /// plain client area, so the click that dismisses it still arrives.
+    /// </summary>
+    protected override void WndProc(ref Message m)
+    {
+        // Over a "title bar" Windows shows the arrow, not the form's Cursor, so the move cursor
+        // has to be set here for the drag to look draggable.
+        if (m.Msg == WM_SETCURSOR && _pinned && (m.LParam.ToInt64() & 0xFFFF) == HTCAPTION)
+        {
+            Cursor.Current = Cursors.SizeAll;
+            m.Result = 1;
+            return;
+        }
+
+        // A pinned card is all "title bar", so its double-click arrives as a non-client one.
+        if (m.Msg == WM_NCLBUTTONDBLCLK && _pinned)
+        {
+            PinnedDoubleClicked?.Invoke(this, EventArgs.Empty);
+            m.Result = IntPtr.Zero;
+            return;
+        }
+
+        base.WndProc(ref m);
+        if (m.Msg == WM_NCHITTEST && _pinned)
+        {
+            // Everywhere but the close button, which must stay client area to receive its click.
+            var lParam = m.LParam.ToInt64();
+            var point = PointToClient(new Point((short)(lParam & 0xFFFF), (short)((lParam >> 16) & 0xFFFF)));
+            if (!CloseBox.Contains(point))
+            {
+                m.Result = HTCAPTION;
+            }
+        }
+    }
+
+    private const int WM_SETCURSOR = 0x0020;
+    private const int WM_NCLBUTTONDBLCLK = 0x00A3;
+
+    /// <summary>Raised when a pinned card is double-clicked — a single click is the start of a drag.</summary>
+    public event EventHandler? PinnedDoubleClicked;
+
+    private bool _closeHot;
+
+    /// <summary>Raised when the close button is clicked, after the card has hidden itself.</summary>
+    public event EventHandler? CloseClicked;
+
+    /// <summary>
+    /// The close button's hit area: a small square in the screen's top-right corner, clear of the
+    /// header text. On the mini card the 5-hour figure is drawn to leave room for it.
+    /// </summary>
+    private Rectangle CloseBox
+    {
+        get
+        {
+            var size = L(11);
+            var inset = Mini ? L(Border + MiniFrame + 1) : L(Border + Frame + 3);
+            return new Rectangle(ClientSize.Width - inset - size, inset, size, size);
+        }
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        SetCloseHot(CloseBox.Contains(e.Location));
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        SetCloseHot(false);
+    }
+
+    private void SetCloseHot(bool hot)
+    {
+        if (hot == _closeHot)
+        {
+            return;
+        }
+
+        _closeHot = hot;
+        Cursor = hot ? Cursors.Hand : _pinned ? Cursors.SizeAll : Cursors.Hand;
+        Invalidate(CloseBox);
+    }
+
+    /// <summary>
+    /// A click on the close button only closes: it skips the Click event, which on the waiting
+    /// card would also bring the chosen app to the front.
+    /// </summary>
+    protected override void OnClick(EventArgs e)
+    {
+        if (CloseBox.Contains(PointToClient(MousePosition)))
+        {
+            Dismiss();
+            CloseClicked?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        base.OnClick(e);
+    }
+
+    /// <summary>
+    /// A 5×5 pixel-art cross, barely there until hovered: muted and mostly transparent at rest,
+    /// the full title colour under the pointer.
+    /// </summary>
+    private void DrawCloseButton(Graphics graphics)
+    {
+        var box = CloseBox;
+        var pixel = FontPixel;
+        var x = box.X + ((box.Width - (5 * pixel)) / 2);
+        var y = box.Y + ((box.Height - (5 * pixel)) / 2);
+
+        using var brush = new SolidBrush(_closeHot ? TitleColor : Color.FromArgb(0x60, MutedColor));
+        for (var i = 0; i < 5; i++)
+        {
+            graphics.FillRectangle(brush, x + (i * pixel), y + (i * pixel), pixel, pixel);
+            graphics.FillRectangle(brush, x + ((4 - i) * pixel), y + (i * pixel), pixel, pixel);
+        }
+    }
+
+    /// <summary>
+    /// Moves a card fully inside a working area — the monitor it was saved on may have been
+    /// unplugged, rearranged, or changed resolution since. Pure, so it can be tested.
+    /// </summary>
+    internal static Point KeepOnScreen(Rectangle card, Rectangle workingArea) => new(
+        Math.Max(workingArea.Left, Math.Min(card.X, workingArea.Right - card.Width)),
+        Math.Max(workingArea.Top, Math.Min(card.Y, workingArea.Bottom - card.Height)));
+
+    /// <summary>Shows the waiting card, or refreshes it in place if it is already up.</summary>
+    public void ShowPrompt(WaitingPrompt prompt) => ShowContent(CardContent.From(prompt));
+
+    /// <summary>Shows the card with any content, or refreshes it in place if it is already up.</summary>
+    public void ShowContent(CardContent content)
+    {
+        _content = content;
         _remaining = Lifetime;
         _lastTick = _shownAt = DateTime.UtcNow;
 
@@ -125,7 +299,17 @@ internal sealed class WaitingCard : Form
             Show();
         }
 
-        _ticker.Start();
+        // The ticker drives the countdown and the bang's blink; a pinned card has neither, and
+        // would otherwise repaint 20 times a second for as long as it is up.
+        if (_pinned)
+        {
+            _ticker.Stop();
+        }
+        else
+        {
+            _ticker.Start();
+        }
+
         Invalidate();
     }
 
@@ -152,17 +336,25 @@ internal sealed class WaitingCard : Form
     /// </summary>
     private void Relayout()
     {
-        var size = new Size(
-            L(ScreenWidth + (2 * (Border + Frame))),
-            L(ScreenHeight + Border + Frame + Chin + Border));
+        var size = Mini
+            ? new Size(L(MiniWidth), L(MiniHeight))
+            : new Size(
+                L(ScreenWidth + (2 * (Border + Frame))),
+                L(ScreenHeight + Border + Frame + Chin + Border));
 
         var workingArea = Screen.PrimaryScreen?.WorkingArea ?? Screen.GetWorkingArea(Point.Empty);
         var gap = L(ScreenMarginFromTaskbar);
-        Bounds = new Rectangle(
-            workingArea.Right - size.Width - gap,
-            workingArea.Bottom - size.Height - gap,
-            size.Width,
-            size.Height);
+        var location = new Point(workingArea.Right - size.Width - gap, workingArea.Bottom - size.Height - gap);
+
+        if (_pinned && (Visible || PinnedLocation is not null))
+        {
+            // Already up: stay where it was dragged. Otherwise: where it was saved. Either way kept
+            // inside the working area of the monitor nearest to it.
+            var wanted = new Rectangle(Visible ? Location : PinnedLocation!.Value, size);
+            location = KeepOnScreen(wanted, Screen.GetWorkingArea(wanted));
+        }
+
+        Bounds = new Rectangle(location, size);
 
         // Region does not take ownership of the one it replaces, and this runs on every show.
         var previousRegion = Region;
@@ -198,7 +390,7 @@ internal sealed class WaitingCard : Form
     /// with everything since Vista. GDI+ quietly substitutes a sans for a missing family, so
     /// check the name that comes back rather than trusting the constructor.
     /// </summary>
-    private static Font CreateDetailFont(int pixelHeight)
+    internal static Font CreateDetailFont(int pixelHeight)
     {
         foreach (var family in new[] { "Cascadia Mono", "Consolas" })
         {
@@ -219,7 +411,8 @@ internal sealed class WaitingCard : Form
         var now = DateTime.UtcNow;
 
         // Paused while hovered: someone reading the card should not have it vanish mid-sentence.
-        if (!ClientRectangle.Contains(PointToClient(Cursor.Position)))
+        // A pinned card does not count down at all.
+        if (!_pinned && !ClientRectangle.Contains(PointToClient(Cursor.Position)))
         {
             _remaining -= now - _lastTick;
         }
@@ -254,19 +447,27 @@ internal sealed class WaitingCard : Form
             graphics.FillRectangle(brush, border, border, ClientSize.Width - (2 * border), ClientSize.Height - (2 * border));
         }
 
-        var screen = new Rectangle(L(Border + Frame), L(Border + Frame), L(ScreenWidth), L(ScreenHeight));
+        var screen = Mini
+            ? new Rectangle(L(Border + MiniFrame), L(Border + MiniFrame), ClientSize.Width - (2 * L(Border + MiniFrame)), ClientSize.Height - (2 * L(Border + MiniFrame)))
+            : new Rectangle(L(Border + Frame), L(Border + Frame), L(ScreenWidth), L(ScreenHeight));
         using (var brush = new SolidBrush(ScreenColor))
         {
             graphics.FillRectangle(brush, screen);
+        }
+
+        if (Mini)
+        {
+            PaintMini(graphics, screen);
+            DrawCloseButton(graphics);
+            return;
         }
 
         var fontPixel = FontPixel;
 
         // Header: where this came from on the left, the state on the right in its accent colour.
         PixelFont.Draw(graphics, "Claude Code", screen.X + L(Inset), screen.Y + L(HeaderY), fontPixel, 3, MutedColor);
-        const string state = "Waiting";
-        var stateWidth = PixelFont.Measure(state, fontPixel, 3, bold: true);
-        PixelFont.Draw(graphics, state, screen.Right - L(Inset) - stateWidth, screen.Y + L(HeaderY), fontPixel, 3, AccentColor, bold: true);
+        var stateWidth = PixelFont.Measure(_content.State, fontPixel, 3, bold: true);
+        PixelFont.Draw(graphics, _content.State, screen.Right - L(Inset) - stateWidth, screen.Y + L(HeaderY), fontPixel, 3, _content.Accent, bold: true);
 
         DrawDog(graphics, screen.X + L(DogX), screen.Y + L(DogY));
 
@@ -274,7 +475,7 @@ internal sealed class WaitingCard : Form
         var textX = screen.X + L(TextX);
         var textWidth = screen.Right - L(Inset) - textX;
         var y = screen.Y + L(TitleY);
-        foreach (var line in PixelFont.Wrap(_prompt.Title.ToUpperInvariant(), textWidth, fontPixel, 3, bold: true))
+        foreach (var line in PixelFont.Wrap(_content.Title.ToUpperInvariant(), textWidth, fontPixel, 3, bold: true))
         {
             PixelFont.Draw(graphics, line, textX, y, fontPixel, 3, TitleColor, bold: true);
             y += L(TitleLineHeight);
@@ -285,18 +486,62 @@ internal sealed class WaitingCard : Form
         var detailBounds = new Rectangle(textX, detailTop, textWidth, screen.Y + L(BarY) - L(12) - detailTop);
         TextRenderer.DrawText(
             graphics,
-            _prompt.Detail,
+            _content.Detail,
             _detailFont,
             detailBounds,
             MutedColor,
             TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
 
         DrawBar(graphics, screen);
+        DrawCloseButton(graphics);
+    }
+
+    /// <summary>
+    /// The mini card: the tray dog, the state in its accent, the 5-hour figure, and the gauge.
+    /// No detail text — at this size it would be unreadable, and the full card is a setting away.
+    /// </summary>
+    private void PaintMini(Graphics graphics, Rectangle screen)
+    {
+        var fontPixel = FontPixel;
+        var dogPixel = Math.Max(1, (int)Math.Round(2 * DpiScale));
+        var dogSize = DogSprites.Size * dogPixel;
+        var dogX = screen.X + L(5);
+        DrawTrayDog(graphics, _content.Dog ?? DogState.Waiting, dogX, screen.Y + ((screen.Height - dogSize) / 2), dogPixel);
+
+        var textX = dogX + dogSize + L(8);
+        var textY = screen.Y + L(8);
+        PixelFont.Draw(graphics, _content.State, textX, textY, fontPixel, 1, _content.Accent, bold: true);
+
+        var figure = _content.Gauge is { } used && _content.Hint is not null
+            ? $"5H {used.ToString("0", System.Globalization.CultureInfo.InvariantCulture)}%"
+            : "5H -";
+        var figureWidth = PixelFont.Measure(figure, fontPixel, 1, bold: true);
+        PixelFont.Draw(graphics, figure, screen.Right - L(16) - figureWidth, textY, fontPixel, 1, TitleColor, bold: true);
+
+        var bar = new Rectangle(textX, screen.Bottom - L(12), screen.Right - L(8) - textX, Math.Max(1, L(4)));
+        using (var brush = new SolidBrush(BarTrackColor))
+        {
+            graphics.FillRectangle(brush, bar);
+        }
+
+        var fraction = Math.Clamp((_content.Gauge ?? 0) / 100, 0, 1);
+        var filled = (int)Math.Round(bar.Width * fraction);
+        if (filled > 0)
+        {
+            using var brush = new SolidBrush(TrayIconRenderer.QuotaColorFor(_content.Gauge ?? 0));
+            graphics.FillRectangle(brush, bar.X, bar.Y, filled, bar.Height);
+        }
     }
 
     /// <summary>Blits the portrait a design pixel at a time, as whole device-pixel squares.</summary>
     private void DrawDog(Graphics graphics, int originX, int originY)
     {
+        if (_content.Dog is { } pose)
+        {
+            DrawTrayDog(graphics, pose, originX, originY, Math.Max(1, (int)Math.Round(6 * DpiScale)));
+            return;
+        }
+
         var size = SpritePixelSize;
 
         // Driven off time since the card appeared rather than a frame counter, so the blink keeps
@@ -331,7 +576,35 @@ internal sealed class WaitingCard : Form
         }
     }
 
-    /// <summary>The countdown bar, draining right to left, with the prompt's hint beside it.</summary>
+    /// <summary>
+    /// The 16px tray sprite for a pose, as <paramref name="size"/>-device-pixel squares. The full
+    /// card uses six design pixels — 96px, the portrait's footprint at four — and the mini card two.
+    /// There is no large portrait for the other poses, and the tray sprite scaled by a whole number
+    /// is still the design's own pixels.
+    /// </summary>
+    private static void DrawTrayDog(Graphics graphics, DogState pose, int originX, int originY, int size)
+    {
+        var sprite = DogSprites.For(pose);
+        for (var row = 0; row < DogSprites.Size; row++)
+        {
+            for (var column = 0; column < DogSprites.Size; column++)
+            {
+                var index = DogSprites.IndexOf(sprite[row][column]);
+                if (index == 0)
+                {
+                    continue;
+                }
+
+                using var brush = new SolidBrush(DogSprites.TrayPalette[index]);
+                graphics.FillRectangle(brush, originX + (column * size), originY + (row * size), size, size);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The countdown bar, draining right to left — or, on the status card, the session gauge in its
+    /// quota colour — with the hint beside it.
+    /// </summary>
     private void DrawBar(Graphics graphics, Rectangle screen)
     {
         var bar = new Rectangle(screen.X + L(Inset), screen.Y + L(BarY), L(BarWidth), Math.Max(1, L(BarHeight)));
@@ -341,15 +614,17 @@ internal sealed class WaitingCard : Form
             graphics.FillRectangle(brush, bar);
         }
 
-        var fraction = Math.Clamp(_remaining / Lifetime, 0, 1);
+        var fraction = _content.Gauge is { } used
+            ? Math.Clamp(used / 100, 0, 1)
+            : Math.Clamp(_remaining / Lifetime, 0, 1);
         var filled = (int)Math.Round(bar.Width * fraction);
         if (filled > 0)
         {
-            using var brush = new SolidBrush(AccentColor);
+            using var brush = new SolidBrush(_content.Gauge is { } gauge ? TrayIconRenderer.QuotaColorFor(gauge) : _content.Accent);
             graphics.FillRectangle(brush, bar.X, bar.Y, filled, bar.Height);
         }
 
-        if (_prompt.Hint is { } hint)
+        if (_content.Hint is { } hint)
         {
             var fontPixel = FontPixel;
             var width = PixelFont.Measure(hint, fontPixel, 1);

@@ -44,7 +44,7 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
   switch it on. The HTTP service is **off by default**.
 
 <p>
-  <img src="docs/images/tray-menu.png" alt="The tray menu, showing the status line, session and week quota figures, and the Settings and Advanced submenus" width="307">
+  <img src="docs/images/settings.png" alt="The settings window: status, session and week tiles above the Notify, Card and Advanced pages, here on Card with both status-card switches on" width="380">
   &nbsp;
   <img src="docs/images/waiting-card.png" alt="The waiting card: the pixel-art dog with the heading INPUT NEEDED and the text Claude is waiting for your input" width="354">
 </p>
@@ -72,7 +72,7 @@ subscription login — Claude Code omits `rate_limits` on API-key sessions, so t
 2. The tray icon appears and registers its hooks in `~/.claude/settings.json` (see
    [Hook registration](#hook-registration-first-run-logic-not-an-msi-custom-action) for exactly
    what it writes, and what it refuses to overwrite).
-3. To serve `/status`, right-click the tray icon and choose **Settings → Enable HTTP service**. It is
+3. To serve `/status`, right-click the tray icon, choose **Settings…**, and switch on **Advanced → Enable HTTP service**. It is
    off by default, so a fresh install opens no port until you ask it to. See
    [The HTTP service](#the-http-service-off-by-default).
 4. If you want another device to reach it, **allow the Windows Firewall prompt** that follows — this
@@ -92,7 +92,7 @@ Worth knowing before you install anything that hooks into Claude Code:
   deserialises only those fields and discards the rest unread. It never opens your transcripts or
   project files.
 - **Out of the box it makes no network calls at all.** The only outbound call it can make is
-  opt-in: with **Settings → Use usage API for Sonnet quota** ticked (off by default) and the HTTP
+  opt-in: with **Settings → Advanced → Use usage API for Sonnet quota** ticked (off by default) and the HTTP
   service on, it **reads your Claude Code OAuth token** from `~/.claude/.credentials.json` for one
   purpose — calling `https://api.anthropic.com/api/oauth/usage`, the same account the token belongs
   to, at most once every 5 minutes, to fetch the one figure the hooks do not supply. The token is
@@ -103,10 +103,12 @@ Worth knowing before you install anything that hooks into Claude Code:
   authentication**. That includes session names and cost. Read the
   security note under [The `/status` endpoint](#the-status-endpoint) before using it on a network you do
   not trust.
-- **It lists your open apps** — process names and their executable descriptions — only when you
-  open **Settings → When notification is clicked…**, to offer them as choices. It keeps nothing
+- **It lists your open apps** — process names and their executable descriptions — only when the
+  settings window opens or you switch to its **Notify** page, to offer them as choices for **When
+  notification is clicked**. It keeps nothing
   from that list but the one process name you pick, and never sends or serves it.
-- **It writes** `%LOCALAPPDATA%\BorisCodeStatus\` (state and preferences) and adds entries
+- **It writes** `%LOCALAPPDATA%\BorisCodeStatus\` (state, preferences, and `error.log` — the stack
+  trace of any unexpected error, kept to about 1 MB and never sent anywhere) and adds entries
   to `~/.claude/settings.json`, after backing that file up once.
 - There is no telemetry, no analytics and no update check.
 
@@ -194,7 +196,7 @@ hooks — so `Active` holds through a normal conversation. The 15-minute timeout
 An **undocumented** Anthropic endpoint, used only for the one figure hooks cannot supply: the
 Sonnet-only weekly split (`week_sonnet`).
 
-**It is off by default.** Tick **Settings → Use usage API for Sonnet quota** to allow it. It is the
+**It is off by default.** Tick **Settings → Advanced → Use usage API for Sonnet quota** to allow it. It is the
 only part of the app that reads the OAuth token or talks to the network, for a figure most displays
 do not show, from an endpoint that is not a contract — so it should be chosen, not assumed. The
 preference is a marker file, `%LOCALAPPDATA%\BorisCodeStatus\usage-api-enabled.flag`, marking the
@@ -405,7 +407,7 @@ an installer custom action. The choice is deliberate:
 - The merge is idempotent, so running it on every launch also repairs a stale path after an upgrade.
   A custom action only ever runs at install time.
 - A failure in a custom action fails the install. A failure at startup is recoverable and
-  surfaceable through the tray's **Re-register hooks** menu item.
+  surfaceable through the **Re-register hooks** button under **Settings → Advanced**.
 
 The MSI launches the tray app once at the end of a successful install, so registration happens
 during installation from the user's point of view.
@@ -489,17 +491,43 @@ actually changes.
 The pose rule lives in `BorisCodeStatus.Core` (`DogStates.For`) rather than in the tray, so the ESP32
 display can derive the same pose from the same state instead of inventing its own mapping.
 
-Right-click menu: a **BorisCodeStatus v1.2.3** header (the build version, stamped at compile time —
-clicking it opens the GitHub repository), then a status line and the current session and week
-figures (display-only), then **Settings**, **Advanced** and **Exit**. The status line reads like
-*Status: Idle · HTTP off · notify on* — the activity plus both settings, since neither setting is
-visible anywhere else. **Settings** holds the persisted preferences — **Notify when waiting**,
-**Enable HTTP service** and **Use usage API for Sonnet quota**, each ticked when on — and **When
-notification is clicked…**, a dialog that picks the app the waiting card brings forward (see below).
-**Advanced** holds one-off actions and repairs —
-**Open in Browser** (opens `/status`), **Re-register hooks**, **Fix firewall access…** — so the
-top level is only what you came to read.
-Double-clicking the icon still opens `/status`, keeping a shortcut on the common action.
+**Right-click menu:** a **BorisCodeStatus v1.2.3** header (the build version, stamped at compile
+time — clicking it opens the GitHub repository), **Settings…** and **Exit**. Kept short so it opens
+instantly; everything else is in the settings window.
+
+**The settings window** repeats the version header and adds three tiles: **Status** (the dog's pose in its badge colour, plus whether
+HTTP and notifications are on, since neither is visible anywhere else), **Session · 5h** and
+**Week · 7d**, each with its figure, a twenty-segment gauge in the ring's colours and the reset time.
+They update live while the window is open. Below, three pages: **Notify** — *Notify when waiting*
+and the app a click on the waiting card brings forward; **Card** — *Keep status card on screen*
+and *Mini status card*; **Advanced** — *Enable HTTP service*, *Use usage API for Sonnet quota*, and
+the repairs: **Open in browser** (opens `/status`), **Re-register hooks** and **Fix firewall
+access…**, greyed out while the HTTP service is off. **Close** sits at the bottom;
+Esc closes too, and the strip above the tiles drags the window.
+**Double-clicking the icon** brings the app chosen under **When notification is clicked** to the
+front, if one is chosen; otherwise it **shows the status card** — the same display card as the waiting
+notification, with the dog in its current pose, the 5-hour figure and reset time, the week, the
+model and both settings, over a bar that is the session gauge in its green/amber/red. It is a
+snapshot, hides itself after 12 seconds (or on a click), and needs no HTTP service. `/status` is
+still under **Settings → Advanced → Open in browser**.
+
+**Settings → Card → Keep status card on screen** (off by default, `status-card-pinned.flag`) pins it
+instead: it stays up, always on top, and updates live with every state change. Drag it anywhere —
+the whole card is the handle, and it still never takes focus from the terminal. Double-click it to bring the
+chosen app to the front. Where you leave it
+is saved to `status-card-position.txt` and restored at the next start, pulled fully back onto the
+nearest monitor's working area if that spot is no longer on screen — a monitor unplugged, the
+layout rearranged, the resolution lowered. Untick the setting to put it away.
+
+**Settings → Card → Mini status card** (off by default, `status-card-mini.flag`) shrinks it to a strip
+two-thirds the width and a fifth the height: the dog in its current pose, the state, the 5-hour
+figure and the gauge, without the detail lines. It applies to both the double-click snapshot and
+the pinned card, and switching it while the card is up redraws it in place.
+
+Every card has a faint **×** in its top-right corner that brightens under the pointer. It only
+closes the card — on the waiting card it does not bring the chosen app forward — and on a pinned
+status card it also unticks **Keep status card on screen**, since otherwise the next refresh would
+bring it straight back.
 
 ### Notification when Claude is waiting for you
 
@@ -517,9 +545,9 @@ layout belongs to Windows, so none of that is possible there. Details worth know
 
 - **It never takes focus.** It is a non-activating tool window (no taskbar button), so it cannot
   swallow keystrokes meant for the terminal. Clicking it dismisses it; it cannot answer the prompt.
-  **Settings → When notification is clicked…** opens a dialog that can also make the click bring an app to the front —
+  **Settings → Notify → When notification is clicked** can also make the click bring an app to the front —
   your terminal, a browser, anything with a window open. It is **off by default** (*Just
-  dismiss*). The dialog lists the apps open at that moment; the choice is stored as a process
+  dismiss*). The page lists the apps open at that moment; the choice is stored as a process
   name in `card-click-app.txt`, so it still works after the app restarts. With several windows of
   that app open, the first one Windows reports is the one that comes forward.
   `Y / N` beside the bar says what Claude is asking, not a key to press on the card.
@@ -540,7 +568,7 @@ tick, so notifying on "is currently Waiting" would repeat the same prompt indefi
 keyed off `activity_changed_utc` instead, giving one notification per wait, while a second prompt
 in the same session still gets its own because the timestamp moves.
 
-**Settings → Notify when waiting** turns it off. It is **on by default**, which is why the marker
+**Settings → Notify → Notify when waiting** turns it off. It is **on by default**, which is why the marker
 file records the *disabled* state (`notifications-disabled.flag`) — that way a missing or
 unreadable preference gives the default, and there is no first-run write. The setting is read at
 the moment of use, so it takes effect immediately rather than at the next restart, and like the
@@ -548,7 +576,7 @@ HTTP setting it survives one.
 
 ### The HTTP service (off by default)
 
-**The HTTP service is off until you switch it on** with **Settings → Enable HTTP service**. The
+**The HTTP service is off until you switch it on** with **Settings → Advanced → Enable HTTP service**. The
 endpoint is unauthenticated and serves session names and cost to the whole LAN, so a fresh install
 should not open a port nobody asked for. Everything else works with it off: the tray icon, the
 waiting notification, the hooks and `state.json`. Only the endpoint (and the usage-API polling
@@ -744,8 +772,8 @@ Reads share every file mode and swallow transient I/O errors.
   ```powershell
   Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "BorisCodeStatus.Hooks.exe"
   ```
-  If the path points inside a `bin\` folder, reinstall the MSI or use **Re-register hooks** from the
-  tray menu to repoint it. A fix — refusing to register from a `bin\`/`obj\` path, and warning when
+  If the path points inside a `bin\` folder, reinstall the MSI or use **Settings → Advanced → Re-register hooks** to
+  repoint it. A fix — refusing to register from a `bin\`/`obj\` path, and warning when
   the registered path no longer exists — is a v1.1 item.
 - **The MSI has been installed and verified on a developer machine, not on a clean VM.** Confirmed
   on a real per-user install: `msiexec` exit code 0 with no UAC prompt, product registered and

@@ -39,6 +39,21 @@ public static class VitalsPaths
     /// </summary>
     public static string ClickTargetFile => Path.Combine(DataDirectory, "card-click-app.txt");
 
+    /// <summary>
+    /// Present when the status card is pinned on screen. Marks the non-default setting, since the
+    /// card only appears on a double-click out of the box.
+    /// </summary>
+    public static string StatusCardPinnedFlagFile => Path.Combine(DataDirectory, "status-card-pinned.flag");
+
+    /// <summary>Present when the status card should be the mini one rather than the full card.</summary>
+    public static string StatusCardMiniFlagFile => Path.Combine(DataDirectory, "status-card-mini.flag");
+
+    /// <summary>Unexpected exceptions from either process. See <see cref="ErrorLog"/>.</summary>
+    public static string ErrorLogFile => Path.Combine(DataDirectory, "error.log");
+
+    /// <summary>"x,y" of the pinned status card's last dragged position.</summary>
+    public static string StatusCardPositionFile => Path.Combine(DataDirectory, "status-card-position.txt");
+
     /// <summary>~\.claude</summary>
     public static string ClaudeDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
