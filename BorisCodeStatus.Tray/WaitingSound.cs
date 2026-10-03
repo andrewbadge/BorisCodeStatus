@@ -1,9 +1,10 @@
 using System.Media;
+using BorisCodeStatus.Core.State;
 
 namespace BorisCodeStatus.Tray;
 
 /// <summary>
-/// Plays the pet's sound for "Claude is waiting". The four recordings are embedded in this
+/// Plays the pet's sound for "Claude is waiting" or a finished turn. The recordings are embedded in this
 /// assembly (see the .csproj), so the installer needs no extra files and a sound cannot go
 /// missing from the install folder.
 ///
@@ -18,18 +19,29 @@ internal static class WaitingSound
     /// </summary>
     private static SoundPlayer? _player;
 
-    /// <summary>Panting or woof for the dog, purr or meow for the cat. Returns immediately.</summary>
-    public static void Play(bool cat, bool alternate)
+    /// <summary>
+    /// Each pet's default and second sound, as shown in Settings. The recording is
+    /// <c>Sounds\{Pet}{Name}.wav</c> with the spaces dropped — e.g. <c>DuckFlyaway.wav</c> — and
+    /// is embedded by the .csproj's glob.
+    /// </summary>
+    public static (string Default, string Alternate) Names(Pet pet) => pet switch
     {
-        var name = (cat, alternate) switch
-        {
-            (false, false) => "DogPanting",
-            (false, true) => "DogWoof",
-            (true, false) => "CatPurr",
-            (true, true) => "CatMeow",
-        };
+        Pet.Cat => ("Purr", "Meow"),
+        Pet.Bot => ("Chirp", "Clamp"),
+        Pet.Duck => ("Quack", "Fly away"),
+        _ => ("Panting", "Woof"),
+    };
 
-        var stream = typeof(WaitingSound).Assembly.GetManifestResourceStream($"Sounds.{name}.wav");
+    internal static string ResourceName(Pet pet, bool alternate)
+    {
+        var names = Names(pet);
+        return $"Sounds.{pet}{(alternate ? names.Alternate : names.Default).Replace(" ", "", StringComparison.Ordinal)}.wav";
+    }
+
+    /// <summary>The pet's sound for the moment. Returns immediately; silent if the recording is missing from the build.</summary>
+    public static void Play(Pet pet, bool alternate)
+    {
+        var stream = typeof(WaitingSound).Assembly.GetManifestResourceStream(ResourceName(pet, alternate));
         if (stream is null)
         {
             return;

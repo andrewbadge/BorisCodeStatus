@@ -31,7 +31,7 @@ internal sealed class TrayIcon : IDisposable
     private bool _usageApiOn;
     private bool _statusPinned;
     private bool _statusMini;
-    private bool _cat;
+    private Pet _pet;
     private bool _waitingSoundOn;
     private bool _idleCardOn;
     private bool _idleSoundOn;
@@ -53,7 +53,7 @@ internal sealed class TrayIcon : IDisposable
     private Icon? _currentIcon;
     private DogState _renderedDog = (DogState)(-1);
     private int _renderedQuotaBucket = -1;
-    private bool _renderedCat;
+    private Pet _renderedPet = (Pet)(-1);
     private bool _httpPersisted = true;
 
     /// <summary>
@@ -86,7 +86,7 @@ internal sealed class TrayIcon : IDisposable
         _usageApiOn = UsageApiPreference.IsEnabled();
         _statusPinned = StatusCardPreference.IsPinned();
         _statusMini = StatusCardPreference.IsMini();
-        _cat = PetPreference.IsCat();
+        _pet = PetPreference.Get();
         _waitingSoundOn = SoundPreference.IsEnabled(NotifyMoment.Waiting);
         _idleCardOn = NotificationPreference.IdleCardEnabled();
         _idleSoundOn = SoundPreference.IsEnabled(NotifyMoment.Idle);
@@ -248,7 +248,7 @@ internal sealed class TrayIcon : IDisposable
         // is read now, so changing it takes effect on the next wait.
         if (_waitingSoundOn)
         {
-            WaitingSound.Play(_cat, SoundAlternate(NotifyMoment.Waiting));
+            WaitingSound.Play(_pet, SoundAlternate(NotifyMoment.Waiting));
         }
 
         // Checked at the moment of use rather than cached, so turning notifications off takes
@@ -275,7 +275,7 @@ internal sealed class TrayIcon : IDisposable
             _waitingCard.Click += (_, _) => BringClickTargetToFront();
         }
 
-        _waitingCard.Cat = _cat;
+        _waitingCard.Pet = _pet;
         _waitingCard.ShowPrompt(prompt);
     }
 
@@ -303,7 +303,7 @@ internal sealed class TrayIcon : IDisposable
 
         if (_idleSoundOn)
         {
-            WaitingSound.Play(_cat, SoundAlternate(NotifyMoment.Idle));
+            WaitingSound.Play(_pet, SoundAlternate(NotifyMoment.Idle));
         }
 
         if (_idleCardOn)
@@ -321,7 +321,7 @@ internal sealed class TrayIcon : IDisposable
             _idleCard.Click += (_, _) => BringClickTargetToFront();
         }
 
-        _idleCard.Cat = _cat;
+        _idleCard.Pet = _pet;
         _idleCard.ShowContent(new CardContent(
             "Idle",
             TrayIconRenderer.QuotaColorFor(0),
@@ -401,7 +401,7 @@ internal sealed class TrayIcon : IDisposable
 
         _statusCard.Pinned = _statusPinned;
         _statusCard.Mini = _statusMini;
-        _statusCard.Cat = _cat;
+        _statusCard.Pet = _pet;
         if (_statusCard.PinnedLocation is null && StatusCardPreference.GetPosition() is { } saved)
         {
             _statusCard.PinnedLocation = new Point(saved.X, saved.Y);
@@ -481,13 +481,13 @@ internal sealed class TrayIcon : IDisposable
     internal bool UsageApiOn => _usageApiOn;
     internal bool StatusPinned => _statusPinned;
     internal bool StatusMini => _statusMini;
-    internal bool IsCat => _cat;
+    internal Pet Pet => _pet;
     internal bool CardOn(NotifyMoment moment) => moment == NotifyMoment.Idle ? _idleCardOn : _notificationsOn;
 
     internal bool SoundOn(NotifyMoment moment) => moment == NotifyMoment.Idle ? _idleSoundOn : _waitingSoundOn;
 
-    /// <summary>Whether the current pet uses its second sound at this moment: woof for the dog, meow for the cat.</summary>
-    internal bool SoundAlternate(NotifyMoment moment) => SoundPreference.UsesAlternate(moment, _cat);
+    /// <summary>Whether the current pet uses its second sound at this moment: woof for the dog, meow for the cat, and so on.</summary>
+    internal bool SoundAlternate(NotifyMoment moment) => SoundPreference.UsesAlternate(moment, _pet);
 
     internal void ToggleCard(NotifyMoment moment)
     {
@@ -530,34 +530,34 @@ internal sealed class TrayIcon : IDisposable
         // Switching on plays it, the way switching a card on shows the card.
         if (on)
         {
-            WaitingSound.Play(_cat, SoundAlternate(moment));
+            WaitingSound.Play(_pet, SoundAlternate(moment));
         }
     }
 
     /// <summary>Picks the current pet's sound for a moment and plays it, so the choice can be heard.</summary>
     internal void SetSoundAlternate(NotifyMoment moment, bool alternate)
     {
-        if (!SoundPreference.TrySetAlternate(moment, _cat, alternate))
+        if (!SoundPreference.TrySetAlternate(moment, _pet, alternate))
         {
             ShowBalloon("That preference could not be saved, so it will not survive a restart.", ToolTipIcon.Warning);
         }
 
-        WaitingSound.Play(_cat, alternate);
+        WaitingSound.Play(_pet, alternate);
     }
 
     /// <summary>
-    /// Dog or cat. Takes effect at once: the icon redraws on the next refresh (the choice is part
+    /// Which pet. Takes effect at once: the icon redraws on the next refresh (the choice is part
     /// of its cache key) and a pinned status card is redrawn by that same refresh.
     /// </summary>
-    internal void SetCat(bool cat)
+    internal void SetPet(Pet pet)
     {
-        if (cat == _cat)
+        if (pet == _pet)
         {
             return;
         }
 
-        _cat = cat;
-        if (!PetPreference.TrySetCat(cat))
+        _pet = pet;
+        if (!PetPreference.TrySet(pet))
         {
             ShowBalloon("That preference could not be saved, so it will not survive a restart.", ToolTipIcon.Warning);
         }
@@ -580,19 +580,19 @@ internal sealed class TrayIcon : IDisposable
         // renders per session rather than one per hook event.
         var bucket = state.Session?.UsedPercentage is { } used ? (int)(Math.Clamp(used, 0, 100) / 5) : -1;
         var dog = DogStates.For(state, DateTimeOffset.UtcNow);
-        if (dog == _renderedDog && bucket == _renderedQuotaBucket && _cat == _renderedCat && _currentIcon is not null)
+        if (dog == _renderedDog && bucket == _renderedQuotaBucket && _pet == _renderedPet && _currentIcon is not null)
         {
             return;
         }
 
-        var replacement = TrayIconRenderer.Render(dog, state.Session?.UsedPercentage, _cat);
+        var replacement = TrayIconRenderer.Render(dog, state.Session?.UsedPercentage, _pet);
         var previous = _currentIcon;
 
         _notifyIcon.Icon = replacement;
         _currentIcon = replacement;
         _renderedDog = dog;
         _renderedQuotaBucket = bucket;
-        _renderedCat = _cat;
+        _renderedPet = _pet;
 
         // Only release the old icon after the tray has taken the new one.
         TrayIconRenderer.Release(previous);
