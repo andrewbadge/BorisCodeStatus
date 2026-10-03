@@ -12,6 +12,7 @@
 [![Licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-blue)](LICENSE)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/andrewbadge)
 
+[Features](#features) ·
 [Quick start](#quick-start) ·
 [Privacy](#privacy-what-it-reads-and-what-leaves-your-machine) ·
 [How it works](#how-it-works) ·
@@ -23,6 +24,7 @@
 [HTTP service](#the-http-service-off-by-default) ·
 [Build](#build) ·
 [Design notes](#design-notes) ·
+[Spec](docs/SPECS.md) ·
 [Known limitations](#known-limitations) ·
 [Contributing](#contributing) ·
 [License](#license) ·
@@ -37,17 +39,44 @@ is doing — working, idle, or waiting for your permission — and how much of y
 left, and serves the same data over HTTP on your local network so a physical display (an
 ESP32-based CrowPanel, in the setup it was built for) can show it too.
 
-- A pixel-art dog in the tray changes pose with Claude's state; a ring around it shows the
-  five-hour quota used.
-- A notification card pops up when Claude is waiting on you, so a permission prompt is not missed.
+- A pixel-art dog — or cat — in the tray shows Claude's state; a ring behind it shows the
+  five-hour quota used, green, then amber, then red.
+- A notification card (and, if you like, a bark or a purr) when Claude is waiting on you, so a
+  permission prompt is not missed.
+- A status card you can pin on screen, full size or mini.
 - `GET /status` on port 5080 returns the whole picture as JSON for any device on the LAN — once you
   switch it on. The HTTP service is **off by default**.
 
-<p>
-  <img src="docs/images/tray-menu.png" alt="The tray menu, showing the status line, session and week quota figures, and the Settings and Advanced submenus" width="307">
-  &nbsp;
-  <img src="docs/images/waiting-card.png" alt="The waiting card: the pixel-art dog with the heading INPUT NEEDED and the text Claude is waiting for your input" width="354">
-</p>
+### Features
+
+<!-- An HTML table rather than Markdown: GitHub sizes Markdown table columns by their text, which
+     shrank the images in one column and not the other. Fixed halves keep every card one size and
+     every settings shot another. -->
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/waiting-card.png" alt="The waiting card with the dog: INPUT NEEDED, Claude is waiting for your input" width="354"><br><b>Waiting card.</b> Pops up when Claude needs you, quoting what it is asking for. A countdown bar, held while you hover; it vanishes once the prompt is answered. Never steals focus from the terminal.</td>
+<td width="50%" valign="top"><img src="docs/images/waiting-card-cat.png" alt="The waiting card with the sitting orange cat: PERMISSION NEEDED, Claude needs your permission to use Bash" width="354"><br><b>Dog or cat.</b> <i>Are you a dog or a cat person?</i> — pick the cat and it replaces Fido in the tray, on the waiting card and on the status card.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/status-card-dog.png" alt="The status card with the dog: WAITING, 5h 6% used, reset time, week figure, model and settings, over a green gauge" width="354"><br><b>Status card.</b> Double-click the tray icon for the current state, the 5-hour and weekly figures, the model, and the session gauge in its quota colour.</td>
+<td width="50%" valign="top"><img src="docs/images/status-card-cat.png" alt="The status card with the cat, in the same layout" width="354"><br><b>Keep it on screen.</b> Pin the status card and it stays on top and updates live. Drag it anywhere; it returns to the same spot next time, pulled back on screen if your monitors change.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/mini-card-dog.png" alt="The mini status card with the dog: WAITING, 5H 6%, and a gauge" width="236"><br><img src="docs/images/mini-card-cat.png" alt="The mini status card with the cat" width="236"><br><b>Mini status card.</b> A strip a fifth the height: pose, state, the 5-hour figure and the gauge. Every card has a faint close button that brightens on hover.</td>
+<td width="50%" valign="top"><img src="docs/images/settings.png" alt="The settings window on its Card page, with the dog chosen" width="380"><br><b>Settings window.</b> Right-click the icon → <i>Settings…</i>. Live status, session and week tiles over the Notify, Card and Advanced pages.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/settings-notify.png" alt="The settings window's Notify page, listing open apps to bring to the front, with Windows Terminal Host chosen" width="380"><br><b>Jump to your terminal.</b> Choose an app — your terminal, a browser, anything open — and clicking the waiting card, double-clicking the icon or double-clicking the pinned card brings it to the front. Off by default.</td>
+<td width="50%" valign="top"><img src="docs/images/settings-advanced.png" alt="The settings window's Advanced page: HTTP service and usage API switches, and Open, Re-register and Fix buttons" width="380"><br><b>Advanced.</b> The HTTP service, the usage-API fallback, and the repairs: open <code>/status</code>, re-register hooks, fix firewall access.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/settings-notify-waiting.png" alt="The settings window's Notify page, When waiting section: Show a card and Play a sound both on, Meow chosen" width="380"><br><b>When waiting.</b> When Claude needs you — a permission prompt or a question — show a card, play a sound, or both. The dog pants or woofs; the cat purrs or meows. The card is on by default; the sound is off.</td>
+<td width="50%" valign="top"><img src="docs/images/settings-notify-idle.png" alt="The settings window's Notify page, When idle section: Show a card and Play a sound both on, Purr chosen" width="380"><br><b>When idle.</b> The same choices for when Claude finishes its turn: a <i>YOUR TURN</i> card, a sound, or both, with its own choice of sound. Off by default.</td>
+</tr>
+<tr>
+<td colspan="2" valign="top"><b>Errors are logged.</b> Anything unexpected, from the tray or the hook, goes to <code>%LOCALAPPDATA%\BorisCodeStatus\error.log</code> instead of a crash dialog.</td>
+</tr>
+</table>
 
 It runs as a per-user tray icon — no console window, no Windows service, no administrator rights
 to install.
@@ -72,7 +101,7 @@ subscription login — Claude Code omits `rate_limits` on API-key sessions, so t
 2. The tray icon appears and registers its hooks in `~/.claude/settings.json` (see
    [Hook registration](#hook-registration-first-run-logic-not-an-msi-custom-action) for exactly
    what it writes, and what it refuses to overwrite).
-3. To serve `/status`, right-click the tray icon and choose **Settings → Enable HTTP service**. It is
+3. To serve `/status`, right-click the tray icon, choose **Settings…**, and switch on **Advanced → Enable HTTP service**. It is
    off by default, so a fresh install opens no port until you ask it to. See
    [The HTTP service](#the-http-service-off-by-default).
 4. If you want another device to reach it, **allow the Windows Firewall prompt** that follows — this
@@ -92,7 +121,7 @@ Worth knowing before you install anything that hooks into Claude Code:
   deserialises only those fields and discards the rest unread. It never opens your transcripts or
   project files.
 - **Out of the box it makes no network calls at all.** The only outbound call it can make is
-  opt-in: with **Settings → Use usage API for Sonnet quota** ticked (off by default) and the HTTP
+  opt-in: with **Settings → Advanced → Use usage API for Sonnet quota** ticked (off by default) and the HTTP
   service on, it **reads your Claude Code OAuth token** from `~/.claude/.credentials.json` for one
   purpose — calling `https://api.anthropic.com/api/oauth/usage`, the same account the token belongs
   to, at most once every 5 minutes, to fetch the one figure the hooks do not supply. The token is
@@ -103,7 +132,12 @@ Worth knowing before you install anything that hooks into Claude Code:
   authentication**. That includes session names and cost. Read the
   security note under [The `/status` endpoint](#the-status-endpoint) before using it on a network you do
   not trust.
-- **It writes** `%LOCALAPPDATA%\BorisCodeStatus\` (state and preferences) and adds entries
+- **It lists your open apps** — process names and their executable descriptions — only when the
+  settings window opens or you switch to its **Notify** page, to offer them as choices for **When
+  notification is clicked**. It keeps nothing
+  from that list but the one process name you pick, and never sends or serves it.
+- **It writes** `%LOCALAPPDATA%\BorisCodeStatus\` (state, preferences, and `error.log` — the stack
+  trace of any unexpected error, kept to about 1 MB and never sent anywhere) and adds entries
   to `~/.claude/settings.json`, after backing that file up once.
 - There is no telemetry, no analytics and no update check.
 
@@ -191,7 +225,7 @@ hooks — so `Active` holds through a normal conversation. The 15-minute timeout
 An **undocumented** Anthropic endpoint, used only for the one figure hooks cannot supply: the
 Sonnet-only weekly split (`week_sonnet`).
 
-**It is off by default.** Tick **Settings → Use usage API for Sonnet quota** to allow it. It is the
+**It is off by default.** Tick **Settings → Advanced → Use usage API for Sonnet quota** to allow it. It is the
 only part of the app that reads the OAuth token or talks to the network, for a figure most displays
 do not show, from an endpoint that is not a contract — so it should be chosen, not assumed. The
 preference is a marker file, `%LOCALAPPDATA%\BorisCodeStatus\usage-api-enabled.flag`, marking the
@@ -402,7 +436,7 @@ an installer custom action. The choice is deliberate:
 - The merge is idempotent, so running it on every launch also repairs a stale path after an upgrade.
   A custom action only ever runs at install time.
 - A failure in a custom action fails the install. A failure at startup is recoverable and
-  surfaceable through the tray's **Re-register hooks** menu item.
+  surfaceable through the **Re-register hooks** button under **Settings → Advanced**.
 
 The MSI launches the tray app once at the end of a successful install, so registration happens
 during installation from the user's point of view.
@@ -442,33 +476,51 @@ restart Claude Code before investigating further.
 
 ## Tray icon
 
-An 8-bit dog — Fido — inside a quota ring. Drawn at runtime rather than shipped as `.ico` assets,
+An 8-bit dog — Fido — over a quota ring. Drawn at runtime rather than shipped as `.ico` assets,
 so it encodes live data:
 
 | Pose | When | Accent |
 |---|---|---|
-| **Running**, tongue out | `activity` is `Working` | orange `#D97757` |
-| **Sitting**, alert | `activity` is `Idle` | green `#6FA96A` |
-| **Ears up** | `activity` is `Waiting` — a permission prompt | amber `#E8B04B` |
-| **Curled up**, eyes closed | Idle for 5 minutes, or no/ended session | slate `#7A8AA3` |
+| Blue square badge | `activity` is `Working` | blue `#6CC6F0` |
+| No badge, plain face | `activity` is `Idle` | — |
+| Amber **!** badge | `activity` is `Waiting` — a permission prompt | amber `#F5B942` |
+| Eyes shut, **Z** badge | Idle for 5 minutes, or no/ended session | lavender `#C8C8D7` |
 
-The **surrounding ring** is the five-hour session quota used, turning red past 80%.
+The **ring behind the dog** is the five-hour session quota used: green below 50%, amber from 50% to
+75%, red above 75%.
 
 The sprites live in `DogSprites.cs` as palette-index grids, one character per pixel, transcribed
-from the design's 20px sheets. Kept as data in source rather than as image files so there are no
-binaries in the repo and the glyph stays diffable. 20px is the largest sprite that clears the ring
-on a 32px canvas; grow either and the ring clips the ears and the accent block. Pixels are blitted
-1:1 with `SetPixel` — any scaling or interpolation destroys pixel art.
+from the design's 16px tray icons. Kept as data in source rather than as image files so there are no
+binaries in the repo and the glyph stays diffable. The icon is drawn at the tray's real
+small-icon size so Windows never resamples it, and the dog fills it like any other tray icon; the
+ring sits behind and shows in the gaps. The design's 32px and 64px icons are exactly the 16px one
+doubled and quadrupled, so larger sizes are whole-pixel integer scales — any interpolation
+destroys pixel art. At 125%/150% scaling the dog stays 16px with a margin.
+
+### Dog or cat
+
+**Settings → Card → Are you a dog or a cat person?** swaps Fido for an orange cat everywhere the
+tray draws one: the tray icon, the waiting card (a sitting cat, in place of the dog's portrait) and
+the status card. The dog is the default, so the marker file, `cat-person.flag`, means cat. The cat's
+sprites live in `DogSprites.cs` beside the dog's, on their own palette, transcribed from the
+design's sheets the same way. Two notes: the cat's idle face carries a green badge where the
+dog's has none, as drawn; and the design's sleeping cat is curled up and too wide for 16px, so
+it appears on the full status card while the tray uses a 16px sleeping face derived from the idle
+one. The choice is the tray's alone — `/status` and the pose rule are unchanged, so the ESP32
+display keeps its own art. The application icon stays the dog.
+
+<img src="docs/images/settings-card-cat.png" alt="The settings window's Card page with the cat chosen" width="380">
 
 ### The application icon
 
 Separate from the tray glyph, `BorisCodeStatus.Tray/fido.ico` is what Explorer, the Start Menu, Alt-Tab
-and Installed Apps show. It is the one committed binary in the project: the toolchain's
-`ApplicationIcon` takes a file path, not pixel data, so the `DogSprites` approach does not apply.
+and Installed Apps show. It is one of only two kinds of committed binary in the project — the other is the waiting
+sounds — because the toolchain's `ApplicationIcon` takes a file path, not pixel data, so the
+`DogSprites` approach does not apply.
 
-It packs the design's 16/20/24/32/48/64/256 sheets into one file so Windows always has an exact
-size and never resamples. It uses the **orange** variant, because at this size the accent reads as
-the brand colour rather than as a state. The Start Menu shortcut carries no `Icon` attribute — it
+It packs the design's 16/24/32/48/64/256 icons into one file so Windows always has an exact
+size and never resamples. It uses the badge-less **idle** face, because a state badge means nothing
+on a static icon. The Start Menu shortcut carries no `Icon` attribute — it
 inherits the icon compiled into the executable — while `ARPPRODUCTICON` points the Installed Apps
 entry at the same file.
 
@@ -483,15 +535,43 @@ actually changes.
 The pose rule lives in `BorisCodeStatus.Core` (`DogStates.For`) rather than in the tray, so the ESP32
 display can derive the same pose from the same state instead of inventing its own mapping.
 
-Right-click menu: a **BorisCodeStatus v1.2.3** header (the build version, stamped at compile time —
-clicking it opens the GitHub repository), then a status line and the current session and week
-figures (display-only), then **Settings**, **Advanced** and **Exit**. The status line reads like
-*Status: Idle · HTTP off · notify on* — the activity plus both settings, since neither setting is
-visible anywhere else. **Settings** holds the persisted preferences — **Notify when waiting**,
-**Enable HTTP service** and **Use usage API for Sonnet quota**, each ticked when on. **Advanced** holds one-off actions and repairs —
-**Open in Browser** (opens `/status`), **Re-register hooks**, **Fix firewall access…** — so the
-top level is only what you came to read.
-Double-clicking the icon still opens `/status`, keeping a shortcut on the common action.
+**Right-click menu:** a **BorisCodeStatus v1.2.3** header (the build version, stamped at compile
+time — clicking it opens the GitHub repository), **Settings…** and **Exit**. Kept short so it opens
+instantly; everything else is in the settings window.
+
+**The settings window** repeats the version header and adds three tiles: **Status** (the dog's pose in its badge colour, plus whether
+HTTP and notifications are on, since neither is visible anywhere else), **Session · 5h** and
+**Week · 7d**, each with its figure, a twenty-segment gauge in the ring's colours and the reset time.
+They update live while the window is open. Below, three pages: **Notify** — for *When waiting* and *When idle*, a card, a sound and which sound,
+and the app a click on a card brings forward; **Card** — *Keep status card on screen*
+and *Mini status card*, and *Are you a dog or a cat person?*; **Advanced** — *Enable HTTP service*, *Use usage API for Sonnet quota*, and
+the repairs: **Open in browser** (opens `/status`), **Re-register hooks** and **Fix firewall
+access…**, greyed out while the HTTP service is off. **Close** sits at the bottom;
+Esc closes too, and the strip above the tiles drags the window.
+**Double-clicking the icon** brings the app chosen under **When notification is clicked** to the
+front, if one is chosen; otherwise it **shows the status card** — the same display card as the waiting
+notification, with the dog in its current pose, the 5-hour figure and reset time, the week, the
+model and both settings, over a bar that is the session gauge in its green/amber/red. It is a
+snapshot, hides itself after 12 seconds (or on a click), and needs no HTTP service. `/status` is
+still under **Settings → Advanced → Open in browser**.
+
+**Settings → Card → Keep status card on screen** (off by default, `status-card-pinned.flag`) pins it
+instead: it stays up, always on top, and updates live with every state change. Drag it anywhere —
+the whole card is the handle, and it still never takes focus from the terminal. Double-click it to bring the
+chosen app to the front. Where you leave it
+is saved to `status-card-position.txt` and restored at the next start, pulled fully back onto the
+nearest monitor's working area if that spot is no longer on screen — a monitor unplugged, the
+layout rearranged, the resolution lowered. Untick the setting to put it away.
+
+**Settings → Card → Mini status card** (off by default, `status-card-mini.flag`) shrinks it to a strip
+two-thirds the width and a fifth the height: the dog in its current pose, the state, the 5-hour
+figure and the gauge, without the detail lines. It applies to both the double-click snapshot and
+the pinned card, and switching it while the card is up redraws it in place.
+
+Every card has a faint **×** in its top-right corner that brightens under the pointer. It only
+closes the card — on the waiting card it does not bring the chosen app forward — and on a pinned
+status card it also unticks **Keep status card on screen**, since otherwise the next refresh would
+bring it straight back.
 
 ### Notification when Claude is waiting for you
 
@@ -509,6 +589,11 @@ layout belongs to Windows, so none of that is possible there. Details worth know
 
 - **It never takes focus.** It is a non-activating tool window (no taskbar button), so it cannot
   swallow keystrokes meant for the terminal. Clicking it dismisses it; it cannot answer the prompt.
+  **Settings → Notify → When notification is clicked** can also make the click bring an app to the front —
+  your terminal, a browser, anything with a window open. It is **off by default** (*Just
+  dismiss*). The page lists the apps open at that moment; the choice is stored as a process
+  name in `card-click-app.txt`, so it still works after the app restarts. With several windows of
+  that app open, the first one Windows reports is the one that comes forward.
   `Y / N` beside the bar says what Claude is asking, not a key to press on the card.
 - **The bar is a countdown** — 12 seconds, held while the pointer is over the card — and the card
   **disappears as soon as the prompt is answered**, because leaving `Waiting` dismisses it.
@@ -527,15 +612,36 @@ tick, so notifying on "is currently Waiting" would repeat the same prompt indefi
 keyed off `activity_changed_utc` instead, giving one notification per wait, while a second prompt
 in the same session still gets its own because the timestamp moves.
 
-**Settings → Notify when waiting** turns it off. It is **on by default**, which is why the marker
+**Settings → Notify → When waiting → Show a card** turns it off. It is **on by default**, which is why the marker
 file records the *disabled* state (`notifications-disabled.flag`) — that way a missing or
 unreadable preference gives the default, and there is no first-run write. The setting is read at
 the moment of use, so it takes effect immediately rather than at the next restart, and like the
 HTTP setting it survives one.
 
+**Each moment has its own card and its own sound.** The Notify page has two sections, **When
+waiting** (a permission prompt or question) and **When idle** (Claude has finished its turn), each
+with *Show a card*, *Play a sound*, and which sound — all independent, so any mix of card, sound,
+both or neither works for each.
+
+- **Defaults:** only the waiting card is on. The waiting sound, the idle card and the idle sound
+  are off (`waiting-sound.flag`, `idle-card.flag`, `idle-sound.flag` mark them on) — a turn ends
+  far more often than a prompt appears, and an unasked-for sound is the most intrusive thing the
+  app could do.
+- **The idle card** reads *YOUR TURN* with the pet in its idle pose and a green countdown, and comes
+  down as soon as the next turn starts. A click on it behaves like a click on the waiting card. It
+  fires on the same once-per-transition rule, and a session that is already idle when the tray
+  starts is not announced.
+- **The sounds follow the pet:** the dog **pants** by default and can **woof** instead; the cat
+  **purrs** by default and can **meow** — chosen separately for each moment and each pet
+  (`dog-woof.flag`, `cat-meow.flag`, `idle-dog-woof.flag`, `idle-cat-meow.flag`), so switching
+  pets keeps every choice. Picking a sound, or switching one on, plays it.
+- The four recordings were made for this project and ship under its licence. They are 16-bit PCM
+  WAV, embedded in the tray assembly (`BorisCodeStatus.Tray/Sounds`), because the built-in
+  `SoundPlayer` plays only WAV and an embedded resource needs nothing from the installer.
+
 ### The HTTP service (off by default)
 
-**The HTTP service is off until you switch it on** with **Settings → Enable HTTP service**. The
+**The HTTP service is off until you switch it on** with **Settings → Advanced → Enable HTTP service**. The
 endpoint is unauthenticated and serves session names and cost to the whole LAN, so a fresh install
 should not open a port nobody asked for. Everything else works with it off: the tray icon, the
 waiting notification, the hooks and `state.json`. Only the endpoint (and the usage-API polling
@@ -695,6 +801,9 @@ tray running and the HTTP service enabled.
 
 ## Design notes
 
+The full behavioural specification — every setting with its default, every timing, every file —
+is [docs/SPECS.md](docs/SPECS.md). This section is the reasoning behind it.
+
 **The hook executable must be fast and must never fail.** Claude Code cancels an in-flight
 statusLine script when the next event arrives, and a slow script stalls status line updates. So the
 hook process does file I/O only — never network — finishes in roughly 200 ms, runs under a 3-second
@@ -731,8 +840,8 @@ Reads share every file mode and swallow transient I/O errors.
   ```powershell
   Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "BorisCodeStatus.Hooks.exe"
   ```
-  If the path points inside a `bin\` folder, reinstall the MSI or use **Re-register hooks** from the
-  tray menu to repoint it. A fix — refusing to register from a `bin\`/`obj\` path, and warning when
+  If the path points inside a `bin\` folder, reinstall the MSI or use **Settings → Advanced → Re-register hooks** to
+  repoint it. A fix — refusing to register from a `bin\`/`obj\` path, and warning when
   the registered path no longer exists — is a v1.1 item.
 - **The MSI has been installed and verified on a developer machine, not on a clean VM.** Confirmed
   on a real per-user install: `msiexec` exit code 0 with no UAC prompt, product registered and

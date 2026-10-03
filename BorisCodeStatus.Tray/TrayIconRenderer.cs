@@ -7,19 +7,15 @@ namespace BorisCodeStatus.Tray;
 
 /// <summary>
 /// Draws the tray glyph at runtime rather than shipping .ico assets, so the icon can encode live
-/// data: the 8-bit dog is the activity state and the surrounding arc is session quota used.
+/// data: the 8-bit dog is the activity state and the arc behind it is session quota used.
 /// This is the tray-side analogue of the ESP32 display.
 /// </summary>
 internal static class TrayIconRenderer
 {
-    // Tray icons are requested at the small-icon size; 32px covers the common 150%/200% DPI scales.
-    private const int Size = 32;
-
-    /// <summary>Top-left of the 20px dog on the 32px canvas — centred, leaving room for the ring.</summary>
-    private const int DogOrigin = (Size - DogSprites.Size) / 2;
-
     private static readonly Color TrackColor = Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF);
-    private static readonly Color QuotaColor = Color.FromArgb(0xE0, 0xFF, 0xFF, 0xFF);
+    // Opaque-ish so the colour reads against both light and dark taskbars.
+    private static readonly Color QuotaLowColor = Color.FromArgb(0xF0, 0x5C, 0xC2, 0x6A);
+    private static readonly Color QuotaMidColor = Color.FromArgb(0xF0, 0xF5, 0xB9, 0x42);
     private static readonly Color QuotaHighColor = Color.FromArgb(0xF0, 0xE5, 0x48, 0x48);
 
     // DllImport rather than LibraryImport: the source generator would require AllowUnsafeBlocks
@@ -32,30 +28,41 @@ internal static class TrayIconRenderer
     /// Renders an icon for the given state. The caller owns the returned <see cref="Icon"/> and must
     /// pass it to <see cref="Release"/> once the tray has stopped using it.
     /// </summary>
-    public static Icon Render(DogState dog, double? sessionUsedPercentage)
+    public static Icon Render(DogState dog, double? sessionUsedPercentage, bool cat = false)
     {
-        using var bitmap = new Bitmap(Size, Size);
+        // Drawn at the exact size the tray shows, so Windows never resamples it: a 32px canvas
+        // shrunk into a 16px slot halved the dog and blurred it. The process is per-monitor
+        // DPI aware, so this is the primary display's real small-icon size.
+        var size = SystemInformation.SmallIconSize.Width;
+
+        using var bitmap = new Bitmap(size, size);
         using (var graphics = Graphics.FromImage(bitmap))
         {
             graphics.Clear(Color.Transparent);
 
-            // The ring first: it is antialiased and the dog is not, so drawing the sprite last
-            // keeps its edges hard even where the two meet.
-            DrawQuotaArc(graphics, sessionUsedPercentage);
+            // The ring first and the dog over it: the dog fills the icon, so the ring shows only
+            // in the gaps — between the ears, beside the chin — as the other tray icons leave no
+            // room for a ring around the outside. Antialiased ring, hard-edged dog.
+            DrawQuotaArc(graphics, size, sessionUsedPercentage);
         }
 
-        DrawDog(bitmap, dog);
+        DrawDog(bitmap, dog, cat);
 
         return CloneFromBitmap(bitmap);
     }
 
     /// <summary>
-    /// Blits the sprite a pixel at a time. SetPixel rather than a scaled DrawImage precisely
-    /// because there is no interpolation to get wrong — pixel art survives only at 1:1.
+    /// Blits the sprite as solid blocks of whole pixels — never an interpolated scale, which is
+    /// what destroys pixel art. The design's 32px and 64px icons are exactly the 16px one doubled
+    /// and quadrupled, so an integer scale reproduces them.
     /// </summary>
-    private static void DrawDog(Bitmap bitmap, DogState dog)
+    // ponytail: integer scales of the 16px sprite only, so at 125%/150% (20/24px slots) the dog
+    // stays 16px with a margin. Transcribe the design's distinct 24px sprites if that matters.
+    private static void DrawDog(Bitmap bitmap, DogState dog, bool cat)
     {
-        var sprite = DogSprites.For(dog);
+        var (sprite, palette) = DogSprites.Tray(dog, cat);
+        var scale = Math.Max(1, bitmap.Width / DogSprites.Size);
+        var origin = (bitmap.Width - DogSprites.Size * scale) / 2;
 
         for (var y = 0; y < DogSprites.Size; y++)
         {
@@ -68,21 +75,29 @@ internal static class TrayIconRenderer
                     continue;
                 }
 
-                bitmap.SetPixel(DogOrigin + x, DogOrigin + y, DogSprites.Palette[index]);
+                var colour = palette[index];
+                for (var dy = 0; dy < scale; dy++)
+                {
+                    for (var dx = 0; dx < scale; dx++)
+                    {
+                        bitmap.SetPixel(origin + x * scale + dx, origin + y * scale + dy, colour);
+                    }
+                }
             }
         }
     }
 
-    /// <summary>An arc around the glyph showing how much of the five-hour window is spent.</summary>
-    private static void DrawQuotaArc(Graphics graphics, double? sessionUsedPercentage)
+    /// <summary>An arc behind the glyph showing how much of the five-hour window is spent.</summary>
+    private static void DrawQuotaArc(Graphics graphics, int size, double? sessionUsedPercentage)
     {
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-        // Sits just outside the dog's corners. Widening the ring or growing the sprite from here
-        // makes the two overlap, and the ring then clips the ears and the accent block.
-        var ring = new Rectangle(1, 1, Size - 3, Size - 3);
+        // An eighth of the icon: 2px in a 16px slot, 4px at 32px. Inset by half its width so the
+        // stroke runs right to the canvas edge without being clipped by it.
+        var width = size / 8f;
+        var ring = new RectangleF(width / 2, width / 2, size - width, size - width);
 
-        using (var trackPen = new Pen(TrackColor, 2.5f))
+        using (var trackPen = new Pen(TrackColor, width))
         {
             graphics.DrawEllipse(trackPen, ring);
         }
@@ -98,7 +113,7 @@ internal static class TrayIconRenderer
             return;
         }
 
-        using var pen = new Pen(used >= 80 ? QuotaHighColor : QuotaColor, 2.5f)
+        using var pen = new Pen(QuotaColorFor(used), width)
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round,
@@ -107,6 +122,14 @@ internal static class TrayIconRenderer
         // Start at twelve o'clock and fill clockwise, the way a gauge reads.
         graphics.DrawArc(pen, ring, -90f, sweep);
     }
+
+    /// <summary>Green below 50%, amber from 50% to 75% inclusive, red above 75%.</summary>
+    internal static Color QuotaColorFor(double used) => used switch
+    {
+        < 50 => QuotaLowColor,
+        <= 75 => QuotaMidColor,
+        _ => QuotaHighColor,
+    };
 
     // GetHicon hands out an unmanaged handle that Icon does not own, so clone into a managed icon
     // and destroy the handle immediately; otherwise every redraw leaks a GDI object.

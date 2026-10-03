@@ -18,4 +18,15 @@ public static class NotificationPreference
             path ?? VitalsPaths.NotificationsDisabledFlagFile,
             set: !enabled,
             reason: "Notifications disabled");
+
+    /// <summary>
+    /// The card for the other moment — Claude finishing a turn. Off by default, the opposite of
+    /// the waiting card: a turn ends far more often than a prompt appears, so a card for it must
+    /// be asked for. The marker therefore means enabled.
+    /// </summary>
+    public static bool IdleCardEnabled(string? path = null) =>
+        FlagPreference.IsSet(path ?? VitalsPaths.IdleCardFlagFile);
+
+    public static bool TrySetIdleCardEnabled(bool enabled, string? path = null) =>
+        FlagPreference.TrySet(path ?? VitalsPaths.IdleCardFlagFile, set: enabled, reason: "Idle card turned on");
 }

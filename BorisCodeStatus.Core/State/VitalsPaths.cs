@@ -33,6 +33,51 @@ public static class VitalsPaths
     public static string NotificationsDisabledFlagFile =>
         Path.Combine(DataDirectory, "notifications-disabled.flag");
 
+    /// <summary>
+    /// Holds the process name of the app a click on the waiting card brings forward. Absent by
+    /// default, when a click only dismisses the card. See <see cref="ClickTargetPreference"/>.
+    /// </summary>
+    public static string ClickTargetFile => Path.Combine(DataDirectory, "card-click-app.txt");
+
+    /// <summary>
+    /// Present when the status card is pinned on screen. Marks the non-default setting, since the
+    /// card only appears on a double-click out of the box.
+    /// </summary>
+    public static string StatusCardPinnedFlagFile => Path.Combine(DataDirectory, "status-card-pinned.flag");
+
+    /// <summary>Present when the status card should be the mini one rather than the full card.</summary>
+    public static string StatusCardMiniFlagFile => Path.Combine(DataDirectory, "status-card-mini.flag");
+
+    /// <summary>Present when the user picked the cat over the default dog. See <see cref="PetPreference"/>.</summary>
+    public static string CatPersonFlagFile => Path.Combine(DataDirectory, "cat-person.flag");
+
+    /// <summary>Present when a sound plays as Claude starts waiting. See <see cref="SoundPreference"/>.</summary>
+    public static string WaitingSoundFlagFile => Path.Combine(DataDirectory, "waiting-sound.flag");
+
+    /// <summary>Present when the dog woofs rather than pants as Claude starts waiting.</summary>
+    public static string DogWoofFlagFile => Path.Combine(DataDirectory, "dog-woof.flag");
+
+    /// <summary>Present when the cat meows rather than purrs as Claude starts waiting.</summary>
+    public static string CatMeowFlagFile => Path.Combine(DataDirectory, "cat-meow.flag");
+
+    /// <summary>Present when a card appears as Claude finishes a turn. Off by default.</summary>
+    public static string IdleCardFlagFile => Path.Combine(DataDirectory, "idle-card.flag");
+
+    /// <summary>Present when a sound plays as Claude finishes a turn. Off by default.</summary>
+    public static string IdleSoundFlagFile => Path.Combine(DataDirectory, "idle-sound.flag");
+
+    /// <summary>Present when the dog woofs rather than pants as Claude finishes a turn.</summary>
+    public static string IdleDogWoofFlagFile => Path.Combine(DataDirectory, "idle-dog-woof.flag");
+
+    /// <summary>Present when the cat meows rather than purrs as Claude finishes a turn.</summary>
+    public static string IdleCatMeowFlagFile => Path.Combine(DataDirectory, "idle-cat-meow.flag");
+
+    /// <summary>Unexpected exceptions from either process. See <see cref="ErrorLog"/>.</summary>
+    public static string ErrorLogFile => Path.Combine(DataDirectory, "error.log");
+
+    /// <summary>"x,y" of the pinned status card's last dragged position.</summary>
+    public static string StatusCardPositionFile => Path.Combine(DataDirectory, "status-card-position.txt");
+
     /// <summary>~\.claude</summary>
     public static string ClaudeDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),

@@ -60,9 +60,9 @@ Claude Code ──stdin JSON──▶ BorisCodeStatus.Hooks.exe ──writes─�
 - **Tray** — WinForms host: owns the message loop, starts the API, draws the icon from live data,
   and registers hooks on every launch (idempotent, so it repairs a stale path after an upgrade).
 
-The tray glyph is an 8-bit dog in a quota ring, drawn at runtime from palette-index grids in
-`DogSprites.cs` (one char per pixel). Blit 1:1 only — scaling destroys it — and do not grow the
-sprite past 20px on the 32px canvas or the ring clips it. The pose rule is `DogStates.For` in
+The tray glyph is an 8-bit dog over a quota ring, drawn at runtime from palette-index grids in
+`DogSprites.cs` (one char per pixel). Blit at whole-pixel integer scales only — interpolation destroys it. It
+is drawn at the tray's real small-icon size and fills it, with the ring behind. The pose rule is `DogStates.For` in
 **Core**, not the tray, because the ESP32 must derive the same pose from the same state.
 
 `VitalsState` **is** the `/status` contract — snake_case `JsonPropertyName` on every member, keyed
@@ -92,8 +92,10 @@ in it or on `/status`. The file always marks the **non-default** setting, so a m
 preference yields the default and there is no first-run write — hence `http-enabled.flag` (default
 off, because `/status` is unauthenticated and LAN-wide) and `notifications-disabled.flag` (default
 on), and `usage-api-enabled.flag` (default off — the only outbound call and the only reader of the
-OAuth token must be opted into). All live under the tray's **Settings** submenu; **Advanced** is for
-one-off actions and repairs.
+OAuth token must be opted into). The one preference with a value, the waiting card's click target,
+follows the same rule with content: `card-click-app.txt` holds a process name, and its absence
+means "just dismiss" (`ClickTargetPreference`). All live in the settings window that the tray menu's
+**Settings…** opens (`SettingsWindow`); its **Advanced** page also holds one-off actions and repairs.
 
 **`Refresh` runs on every state write *and* every pose-timer tick.** Anything with a side effect —
 a notification, a balloon — must fire on a transition, keyed off `activity_changed_utc`, not on
@@ -113,7 +115,7 @@ Match that register; the existing XML doc comments are the house style.
   whatever path it is running from, so a `bin\Debug\...` path can end up in your global settings —
   and once cleaned, every hook fails silently forever, because the hook is built never to report
   errors. Check with `Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern "BorisCodeStatus.Hooks.exe"`
-  and repair with the tray's **Re-register hooks**.
+  and repair with **Settings → Advanced → Re-register hooks**.
 - `/status` is unauthenticated and bound to `0.0.0.0` by design in v1. Do not quietly widen what it
   exposes; it already serves session names and cost to anything on the LAN.
 - **The project is public and GPL-3.0-or-later**, and the README's *Privacy* section makes
