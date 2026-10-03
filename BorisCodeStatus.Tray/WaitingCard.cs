@@ -147,6 +147,10 @@ internal sealed class WaitingCard : Form
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool Mini { get; set; }
 
+    /// <summary>Draw the cat instead of the dog: its portrait on the waiting card, its tray sprites elsewhere.</summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public bool Cat { get; set; }
+
     private const int WM_NCHITTEST = 0x0084;
     private const int HTCAPTION = 2;
 
@@ -536,9 +540,24 @@ internal sealed class WaitingCard : Form
     /// <summary>Blits the portrait a design pixel at a time, as whole device-pixel squares.</summary>
     private void DrawDog(Graphics graphics, int originX, int originY)
     {
+        if (_content.Dog is DogState.Sleeping && Cat)
+        {
+            // 22×14 at five design pixels is 110×70: centred on the tray sprite's 96×96 square.
+            var cell = Math.Max(1, (int)Math.Round(5 * DpiScale));
+            DrawGrid(graphics, DogSprites.CatSleepingPortrait, DogSprites.CatPalette, originX - L(7), originY + L(13), cell);
+            return;
+        }
+
         if (_content.Dog is { } pose)
         {
             DrawTrayDog(graphics, pose, originX, originY, Math.Max(1, (int)Math.Round(6 * DpiScale)));
+            return;
+        }
+
+        if (Cat)
+        {
+            // 18×20 at five design pixels is 90×100, the dog portrait's footprint at four.
+            DrawGrid(graphics, DogSprites.CatPortrait, DogSprites.CatPalette, originX, originY, Math.Max(1, (int)Math.Round(5 * DpiScale)));
             return;
         }
 
@@ -576,18 +595,12 @@ internal sealed class WaitingCard : Form
         }
     }
 
-    /// <summary>
-    /// The 16px tray sprite for a pose, as <paramref name="size"/>-device-pixel squares. The full
-    /// card uses six design pixels — 96px, the portrait's footprint at four — and the mini card two.
-    /// There is no large portrait for the other poses, and the tray sprite scaled by a whole number
-    /// is still the design's own pixels.
-    /// </summary>
-    private static void DrawTrayDog(Graphics graphics, DogState pose, int originX, int originY, int size)
+    /// <summary>Blits any palette grid as solid squares of <paramref name="size"/> device pixels.</summary>
+    private static void DrawGrid(Graphics graphics, string[] sprite, Color[] palette, int originX, int originY, int size)
     {
-        var sprite = DogSprites.For(pose);
-        for (var row = 0; row < DogSprites.Size; row++)
+        for (var row = 0; row < sprite.Length; row++)
         {
-            for (var column = 0; column < DogSprites.Size; column++)
+            for (var column = 0; column < sprite[row].Length; column++)
             {
                 var index = DogSprites.IndexOf(sprite[row][column]);
                 if (index == 0)
@@ -595,10 +608,22 @@ internal sealed class WaitingCard : Form
                     continue;
                 }
 
-                using var brush = new SolidBrush(DogSprites.TrayPalette[index]);
+                using var brush = new SolidBrush(palette[index]);
                 graphics.FillRectangle(brush, originX + (column * size), originY + (row * size), size, size);
             }
         }
+    }
+
+    /// <summary>
+    /// The 16px tray sprite for a pose, as <paramref name="size"/>-device-pixel squares. The full
+    /// card uses six design pixels — 96px, the portrait's footprint at four — and the mini card two.
+    /// There is no large portrait for the other poses, and the tray sprite scaled by a whole number
+    /// is still the design's own pixels.
+    /// </summary>
+    private void DrawTrayDog(Graphics graphics, DogState pose, int originX, int originY, int size)
+    {
+        var (sprite, palette) = DogSprites.Tray(pose, Cat);
+        DrawGrid(graphics, sprite, palette, originX, originY, size);
     }
 
     /// <summary>

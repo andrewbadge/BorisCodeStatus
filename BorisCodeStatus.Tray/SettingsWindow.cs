@@ -53,7 +53,6 @@ internal sealed class SettingsWindow : Form
     private readonly Panel[] _pages = new Panel[3];
     private readonly NavItem[] _nav = new NavItem[3];
 
-    private readonly Toggle _notify;
     private readonly Toggle _pinned;
     private readonly Toggle _mini;
     private readonly Toggle _http;
@@ -62,6 +61,9 @@ internal sealed class SettingsWindow : Form
     private readonly Label _fixNote;
     private readonly Panel _apps;
     private readonly Choice _dismissOnly;
+    private readonly MomentControls[] _moments;
+    private readonly Choice _dog;
+    private readonly Choice _cat;
 
     [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
     private static extern int SetWindowTheme(IntPtr window, string? subAppName, string? subIdList);
@@ -123,31 +125,27 @@ internal sealed class SettingsWindow : Form
         // Notify.
         var notifyPage = _pages[0];
         Heading(notifyPage, "Notifications", 24);
-        var notifyGroup = Group(notifyPage, 60, rows: 1);
-        _notify = new Toggle();
-        _notify.Click += (_, _) =>
-        {
-            _tray.ToggleNotifications();
-            RefreshFromTray();
-        };
-        Row(notifyGroup, 0, "Notify when waiting", _notify);
 
-        notifyPage.Controls.Add(new PixelText("When notification is clicked", Ink, scale: 1, tracking: 2, bold: true) { Location = P(Margin96, 140) });
+        // One section per moment — Claude waiting on you, Claude finishing a turn — each with the
+        // card, the sound, and which sound, all independent.
+        _moments = [Moment(notifyPage, 64, NotifyMoment.Waiting, "When waiting"), Moment(notifyPage, 296, NotifyMoment.Idle, "When idle")];
+
+        notifyPage.Controls.Add(new PixelText("When notification is clicked", Ink, scale: 1, tracking: 2, bold: true) { Location = P(Margin96, 528) });
         notifyPage.Controls.Add(new Label
         {
-            Text = "Clicking the waiting notification closes it. It can also bring one of these apps to the front.",
+            Text = "Clicking a notification card closes it. It can also bring one of these apps to the front.",
             Font = _small,
             ForeColor = Muted,
             BackColor = Back,
-            Bounds = R(Margin96, 158, GroupWidth, 36),
+            Bounds = R(Margin96, 546, GroupWidth, 36),
         });
 
-        var dismissGroup = Group(notifyPage, 200, rows: 1, rowHeight: 48);
+        var dismissGroup = Group(notifyPage, 588, rows: 1, rowHeight: 48);
         _dismissOnly = new Choice("Just dismiss the notification", _body) { Bounds = R(16, 4, GroupWidth - 32, 40) };
         _dismissOnly.Click += (_, _) => SetClickTarget(null);
         dismissGroup.Controls.Add(_dismissOnly);
 
-        _apps = Group(notifyPage, 260, rows: 1, rowHeight: 48);
+        _apps = Group(notifyPage, 648, rows: 1, rowHeight: 48);
         _apps.Tag = int.MaxValue; // One bordered box; the choices need no rules between them.
 
         // Card.
@@ -168,6 +166,23 @@ internal sealed class SettingsWindow : Form
             RefreshFromTray();
         };
         Row(cardGroup, 1, "Mini status card", _mini);
+
+        cardPage.Controls.Add(new PixelText("Are you a dog or a cat person?", Ink, scale: 1, tracking: 2, bold: true) { Location = P(Margin96, 196) });
+        var petGroup = Group(cardPage, 216, rows: 1);
+        _dog = new Choice("Dog", _body, DogSprites.Tray(DogState.Idle, cat: false)) { Bounds = R(16, 8, 200, 40) };
+        _dog.Click += (_, _) =>
+        {
+            _tray.SetCat(false);
+            RefreshFromTray();
+        };
+        _cat = new Choice("Cat", _body, DogSprites.Tray(DogState.Idle, cat: true)) { Bounds = R(16 + ((GroupWidth - 32) / 2), 8, 200, 40) };
+        _cat.Click += (_, _) =>
+        {
+            _tray.SetCat(true);
+            RefreshFromTray();
+        };
+        petGroup.Controls.Add(_dog);
+        petGroup.Controls.Add(_cat);
 
         // Advanced.
         var advancedPage = _pages[2];
@@ -219,7 +234,6 @@ internal sealed class SettingsWindow : Form
     /// <summary>Re-reads everything from the tray. Called by the tray on each refresh.</summary>
     public void RefreshFromTray()
     {
-        _notify.On = _tray.NotificationsOn;
         _pinned.On = _tray.StatusPinned;
         _mini.On = _tray.StatusMini;
         _http.On = _tray.HttpOn;
@@ -232,6 +246,18 @@ internal sealed class SettingsWindow : Form
         _fixNote.Visible = !_tray.HttpOn;
 
         var current = ClickTargetPreference.Get();
+        foreach (var m in _moments)
+        {
+            m.Card.On = _tray.CardOn(m.Moment);
+            m.Sound.On = _tray.SoundOn(m.Moment);
+            m.Default.Text = _tray.IsCat ? "Purr (default)" : "Panting (default)";
+            m.Alternate.Text = _tray.IsCat ? "Meow" : "Woof";
+            m.Default.On = !_tray.SoundAlternate(m.Moment);
+            m.Alternate.On = _tray.SoundAlternate(m.Moment);
+        }
+
+        _dog.On = !_tray.IsCat;
+        _cat.On = _tray.IsCat;
         _dismissOnly.On = current is null;
         foreach (var choice in _apps.Controls.OfType<Choice>())
         {
@@ -352,6 +378,54 @@ internal sealed class SettingsWindow : Form
         }
 
         RefreshFromTray();
+    }
+
+    /// <summary>The switches and sound choices for one <see cref="NotifyMoment"/>.</summary>
+    private sealed record MomentControls(NotifyMoment Moment, Toggle Card, Toggle Sound, Choice Default, Choice Alternate);
+
+    /// <summary>
+    /// A section of the Notify page: a subheading, the card and sound switches, and the current
+    /// pet's two sounds (relabelled by <see cref="RefreshFromTray"/> when the pet changes). 200
+    /// design pixels tall from <paramref name="y"/>.
+    /// </summary>
+    private MomentControls Moment(Panel page, int y, NotifyMoment moment, string title)
+    {
+        page.Controls.Add(new PixelText(title, Ink, scale: 1, tracking: 2, bold: true) { Location = P(Margin96, y) });
+
+        var switches = Group(page, y + 20, rows: 2);
+        var card = new Toggle();
+        card.Click += (_, _) =>
+        {
+            _tray.ToggleCard(moment);
+            RefreshFromTray();
+        };
+        Row(switches, 0, "Show a card", card);
+
+        var sound = new Toggle();
+        sound.Click += (_, _) =>
+        {
+            _tray.ToggleSound(moment);
+            RefreshFromTray();
+        };
+        Row(switches, 1, "Play a sound", sound);
+
+        var sounds = Group(page, y + 144, rows: 1);
+        var preferred = new Choice(string.Empty, _body) { Bounds = R(16, 8, 220, 40) };
+        preferred.Click += (_, _) =>
+        {
+            _tray.SetSoundAlternate(moment, false);
+            RefreshFromTray();
+        };
+        var alternate = new Choice(string.Empty, _body) { Bounds = R(16 + ((GroupWidth - 32) / 2), 8, 220, 40) };
+        alternate.Click += (_, _) =>
+        {
+            _tray.SetSoundAlternate(moment, true);
+            RefreshFromTray();
+        };
+        sounds.Controls.Add(preferred);
+        sounds.Controls.Add(alternate);
+
+        return new MomentControls(moment, card, sound, preferred, alternate);
     }
 
     private void Heading(Panel page, string text, int y) =>
@@ -608,6 +682,12 @@ internal sealed class SettingsWindow : Form
             Invalidate();
         }
 
+        protected override void OnTextChanged(EventArgs e)
+        {
+            base.OnTextChanged(e);
+            Invalidate();
+        }
+
         protected override void OnEnabledChanged(EventArgs e)
         {
             base.OnEnabledChanged(e);
@@ -732,12 +812,15 @@ internal sealed class SettingsWindow : Form
     private sealed class Choice : Painted
     {
         private readonly Font _font;
+        private readonly (string[] Grid, Color[] Palette)? _icon;
         private bool _on;
 
-        public Choice(string text, Font font)
+        /// <summary>Optionally with a 16px sprite beside the box, drawn at two pixels per cell.</summary>
+        public Choice(string text, Font font, (string[] Grid, Color[] Palette)? icon = null)
         {
             Text = text;
             _font = font;
+            _icon = icon;
         }
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -772,7 +855,28 @@ internal sealed class SettingsWindow : Form
                 graphics.FillRectangle(fill, box.X + (p * 5), box.Y + (p * 5), box.Width - (p * 10), box.Height - (p * 10));
             }
 
-            var textBounds = new Rectangle(size + (p * 14), 0, Width - size - (p * 14), Height);
+            var textLeft = size + (p * 14);
+            if (_icon is { } icon)
+            {
+                var cell = p * 2;
+                var top = (Height - (icon.Grid.Length * cell)) / 2;
+                for (var row = 0; row < icon.Grid.Length; row++)
+                {
+                    for (var column = 0; column < icon.Grid[row].Length; column++)
+                    {
+                        var index = DogSprites.IndexOf(icon.Grid[row][column]);
+                        if (index != 0)
+                        {
+                            using var brush = new SolidBrush(icon.Palette[index]);
+                            graphics.FillRectangle(brush, textLeft + (column * cell), top + (row * cell), cell, cell);
+                        }
+                    }
+                }
+
+                textLeft += (icon.Grid[0].Length * cell) + (p * 12);
+            }
+
+            var textBounds = new Rectangle(textLeft, 0, Width - textLeft, Height);
             TextRenderer.DrawText(graphics, Text, _font, textBounds, Hot || _on ? Ink : Muted, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
         }
     }

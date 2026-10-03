@@ -31,6 +31,10 @@ internal sealed class TrayIcon : IDisposable
     private bool _usageApiOn;
     private bool _statusPinned;
     private bool _statusMini;
+    private bool _cat;
+    private bool _waitingSoundOn;
+    private bool _idleCardOn;
+    private bool _idleSoundOn;
 
     /// <summary>True while the HTTP service is starting or stopping, so the switch cannot race it.</summary>
     private bool _httpBusy;
@@ -49,6 +53,7 @@ internal sealed class TrayIcon : IDisposable
     private Icon? _currentIcon;
     private DogState _renderedDog = (DogState)(-1);
     private int _renderedQuotaBucket = -1;
+    private bool _renderedCat;
     private bool _httpPersisted = true;
 
     /// <summary>
@@ -60,6 +65,10 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>The waiting notification. Null until the first one is shown.</summary>
     private WaitingCard? _waitingCard;
     private WaitingCard? _statusCard;
+    private WaitingCard? _idleCard;
+
+    /// <summary>When the turn we last announced ended; the idle counterpart of <see cref="_lastNotifiedWaitAt"/>.</summary>
+    private DateTimeOffset? _lastNotifiedIdleAt;
 
     private bool _disposed;
 
@@ -77,6 +86,17 @@ internal sealed class TrayIcon : IDisposable
         _usageApiOn = UsageApiPreference.IsEnabled();
         _statusPinned = StatusCardPreference.IsPinned();
         _statusMini = StatusCardPreference.IsMini();
+        _cat = PetPreference.IsCat();
+        _waitingSoundOn = SoundPreference.IsEnabled(NotifyMoment.Waiting);
+        _idleCardOn = NotificationPreference.IdleCardEnabled();
+        _idleSoundOn = SoundPreference.IsEnabled(NotifyMoment.Idle);
+
+        // A session already idle when the tray starts — at login, say — finished its turn before we
+        // were here to see it. Without this baseline every start would announce it.
+        if (store.Current.Activity == ActivityState.Idle)
+        {
+            _lastNotifiedIdleAt = store.Current.ActivityChangedUtc;
+        }
 
         // A short menu that opens instantly; everything else lives in the settings window. The
         // header is the version and links to the source — under the GPL, worth keeping one click away.
@@ -189,6 +209,7 @@ internal sealed class TrayIcon : IDisposable
         }
 
         NotifyIfWaitingForInput(state);
+        NotifyIfIdle(state);
     }
 
     /// <summary>
@@ -223,6 +244,13 @@ internal sealed class TrayIcon : IDisposable
 
         _lastNotifiedWaitAt = waitingSince;
 
+        // The sound and the card are independent: either, both, or neither. The pet's sound choice
+        // is read now, so changing it takes effect on the next wait.
+        if (_waitingSoundOn)
+        {
+            WaitingSound.Play(_cat, SoundAlternate(NotifyMoment.Waiting));
+        }
+
         // Checked at the moment of use rather than cached, so turning notifications off takes
         // effect immediately rather than at the next restart.
         if (!NotificationPreference.AreEnabled())
@@ -247,7 +275,60 @@ internal sealed class TrayIcon : IDisposable
             _waitingCard.Click += (_, _) => BringClickTargetToFront();
         }
 
+        _waitingCard.Cat = _cat;
         _waitingCard.ShowPrompt(prompt);
+    }
+
+    /// <summary>
+    /// The idle counterpart of <see cref="NotifyIfWaitingForInput"/>: a sound and/or a card when a
+    /// turn ends, so the user knows Claude has finished. Same transition rule — keyed off
+    /// <see cref="VitalsState.ActivityChangedUtc"/>, once per turn — and the card comes down as
+    /// soon as the next turn starts.
+    /// </summary>
+    private void NotifyIfIdle(VitalsState state)
+    {
+        if (state.Activity != ActivityState.Idle)
+        {
+            _lastNotifiedIdleAt = null;
+            _idleCard?.Dismiss();
+            return;
+        }
+
+        if (state.ActivityChangedUtc == _lastNotifiedIdleAt)
+        {
+            return;
+        }
+
+        _lastNotifiedIdleAt = state.ActivityChangedUtc;
+
+        if (_idleSoundOn)
+        {
+            WaitingSound.Play(_cat, SoundAlternate(NotifyMoment.Idle));
+        }
+
+        if (_idleCardOn)
+        {
+            ShowIdleCard();
+        }
+    }
+
+    /// <summary>Its own instance, so the waiting card's dismissal on every non-waiting refresh cannot take it down.</summary>
+    private void ShowIdleCard()
+    {
+        if (_idleCard is null)
+        {
+            _idleCard = new WaitingCard();
+            _idleCard.Click += (_, _) => BringClickTargetToFront();
+        }
+
+        _idleCard.Cat = _cat;
+        _idleCard.ShowContent(new CardContent(
+            "Idle",
+            TrayIconRenderer.QuotaColorFor(0),
+            "Your turn",
+            "Claude has finished and is waiting for your next message.",
+            Hint: null,
+            Dog: DogState.Idle));
     }
 
     /// <summary>
@@ -320,6 +401,7 @@ internal sealed class TrayIcon : IDisposable
 
         _statusCard.Pinned = _statusPinned;
         _statusCard.Mini = _statusMini;
+        _statusCard.Cat = _cat;
         if (_statusCard.PinnedLocation is null && StatusCardPreference.GetPosition() is { } saved)
         {
             _statusCard.PinnedLocation = new Point(saved.X, saved.Y);
@@ -399,6 +481,89 @@ internal sealed class TrayIcon : IDisposable
     internal bool UsageApiOn => _usageApiOn;
     internal bool StatusPinned => _statusPinned;
     internal bool StatusMini => _statusMini;
+    internal bool IsCat => _cat;
+    internal bool CardOn(NotifyMoment moment) => moment == NotifyMoment.Idle ? _idleCardOn : _notificationsOn;
+
+    internal bool SoundOn(NotifyMoment moment) => moment == NotifyMoment.Idle ? _idleSoundOn : _waitingSoundOn;
+
+    /// <summary>Whether the current pet uses its second sound at this moment: woof for the dog, meow for the cat.</summary>
+    internal bool SoundAlternate(NotifyMoment moment) => SoundPreference.UsesAlternate(moment, _cat);
+
+    internal void ToggleCard(NotifyMoment moment)
+    {
+        if (moment == NotifyMoment.Waiting)
+        {
+            ToggleNotifications();
+            return;
+        }
+
+        _idleCardOn = !_idleCardOn;
+        if (!NotificationPreference.TrySetIdleCardEnabled(_idleCardOn))
+        {
+            ShowBalloon("That preference could not be saved, so it will not survive a restart.", ToolTipIcon.Warning);
+        }
+
+        // Confirmed by showing it, like the waiting card.
+        if (_idleCardOn)
+        {
+            ShowIdleCard();
+        }
+    }
+
+    internal void ToggleSound(NotifyMoment moment)
+    {
+        var on = !SoundOn(moment);
+        if (moment == NotifyMoment.Idle)
+        {
+            _idleSoundOn = on;
+        }
+        else
+        {
+            _waitingSoundOn = on;
+        }
+
+        if (!SoundPreference.TrySetEnabled(moment, on))
+        {
+            ShowBalloon("That preference could not be saved, so it will not survive a restart.", ToolTipIcon.Warning);
+        }
+
+        // Switching on plays it, the way switching a card on shows the card.
+        if (on)
+        {
+            WaitingSound.Play(_cat, SoundAlternate(moment));
+        }
+    }
+
+    /// <summary>Picks the current pet's sound for a moment and plays it, so the choice can be heard.</summary>
+    internal void SetSoundAlternate(NotifyMoment moment, bool alternate)
+    {
+        if (!SoundPreference.TrySetAlternate(moment, _cat, alternate))
+        {
+            ShowBalloon("That preference could not be saved, so it will not survive a restart.", ToolTipIcon.Warning);
+        }
+
+        WaitingSound.Play(_cat, alternate);
+    }
+
+    /// <summary>
+    /// Dog or cat. Takes effect at once: the icon redraws on the next refresh (the choice is part
+    /// of its cache key) and a pinned status card is redrawn by that same refresh.
+    /// </summary>
+    internal void SetCat(bool cat)
+    {
+        if (cat == _cat)
+        {
+            return;
+        }
+
+        _cat = cat;
+        if (!PetPreference.TrySetCat(cat))
+        {
+            ShowBalloon("That preference could not be saved, so it will not survive a restart.", ToolTipIcon.Warning);
+        }
+
+        Refresh(_store.Current);
+    }
 
     /// <summary>The accent for a pose: the colour of its tray badge, orange for the badge-less idle face.</summary>
     internal static Color AccentFor(DogState dog) => DogSprites.TrayPalette[dog switch
@@ -415,18 +580,19 @@ internal sealed class TrayIcon : IDisposable
         // renders per session rather than one per hook event.
         var bucket = state.Session?.UsedPercentage is { } used ? (int)(Math.Clamp(used, 0, 100) / 5) : -1;
         var dog = DogStates.For(state, DateTimeOffset.UtcNow);
-        if (dog == _renderedDog && bucket == _renderedQuotaBucket && _currentIcon is not null)
+        if (dog == _renderedDog && bucket == _renderedQuotaBucket && _cat == _renderedCat && _currentIcon is not null)
         {
             return;
         }
 
-        var replacement = TrayIconRenderer.Render(dog, state.Session?.UsedPercentage);
+        var replacement = TrayIconRenderer.Render(dog, state.Session?.UsedPercentage, _cat);
         var previous = _currentIcon;
 
         _notifyIcon.Icon = replacement;
         _currentIcon = replacement;
         _renderedDog = dog;
         _renderedQuotaBucket = bucket;
+        _renderedCat = _cat;
 
         // Only release the old icon after the tray has taken the new one.
         TrayIconRenderer.Release(previous);
@@ -808,6 +974,7 @@ internal sealed class TrayIcon : IDisposable
         _poseTimer.Stop();
         _poseTimer.Dispose();
         _waitingCard?.Dispose();
+        _idleCard?.Dispose();
         _statusCard?.Dispose();
         _settings?.Dispose();
         _waitingCard = null;

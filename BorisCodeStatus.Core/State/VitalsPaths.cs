@@ -48,6 +48,30 @@ public static class VitalsPaths
     /// <summary>Present when the status card should be the mini one rather than the full card.</summary>
     public static string StatusCardMiniFlagFile => Path.Combine(DataDirectory, "status-card-mini.flag");
 
+    /// <summary>Present when the user picked the cat over the default dog. See <see cref="PetPreference"/>.</summary>
+    public static string CatPersonFlagFile => Path.Combine(DataDirectory, "cat-person.flag");
+
+    /// <summary>Present when a sound plays as Claude starts waiting. See <see cref="SoundPreference"/>.</summary>
+    public static string WaitingSoundFlagFile => Path.Combine(DataDirectory, "waiting-sound.flag");
+
+    /// <summary>Present when the dog woofs rather than pants as Claude starts waiting.</summary>
+    public static string DogWoofFlagFile => Path.Combine(DataDirectory, "dog-woof.flag");
+
+    /// <summary>Present when the cat meows rather than purrs as Claude starts waiting.</summary>
+    public static string CatMeowFlagFile => Path.Combine(DataDirectory, "cat-meow.flag");
+
+    /// <summary>Present when a card appears as Claude finishes a turn. Off by default.</summary>
+    public static string IdleCardFlagFile => Path.Combine(DataDirectory, "idle-card.flag");
+
+    /// <summary>Present when a sound plays as Claude finishes a turn. Off by default.</summary>
+    public static string IdleSoundFlagFile => Path.Combine(DataDirectory, "idle-sound.flag");
+
+    /// <summary>Present when the dog woofs rather than pants as Claude finishes a turn.</summary>
+    public static string IdleDogWoofFlagFile => Path.Combine(DataDirectory, "idle-dog-woof.flag");
+
+    /// <summary>Present when the cat meows rather than purrs as Claude finishes a turn.</summary>
+    public static string IdleCatMeowFlagFile => Path.Combine(DataDirectory, "idle-cat-meow.flag");
+
     /// <summary>Unexpected exceptions from either process. See <see cref="ErrorLog"/>.</summary>
     public static string ErrorLogFile => Path.Combine(DataDirectory, "error.log");
 
