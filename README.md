@@ -39,9 +39,9 @@ is doing — working, idle, or waiting for your permission — and how much of y
 left, and serves the same data over HTTP on your local network so a physical display (an
 ESP32-based CrowPanel, in the setup it was built for) can show it too.
 
-- A pixel-art dog — or cat — in the tray shows Claude's state; a ring behind it shows the
+- A pixel-art dog — or cat, sentry bot or rubber duck — in the tray shows Claude's state; a ring behind it shows the
   five-hour quota used, green, then amber, then red.
-- A notification card (and, if you like, a bark or a purr) when Claude is waiting on you, so a
+- A notification card (and, if you like, a bark, a purr, a chirp or a quack) when Claude is waiting on you, so a
   permission prompt is not missed.
 - A status card you can pin on screen, full size or mini.
 - `GET /status` on port 5080 returns the whole picture as JSON for any device on the LAN — once you
@@ -70,7 +70,7 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
 <td width="50%" valign="top"><img src="docs/images/settings-advanced.png" alt="The settings window's Advanced page: HTTP service and usage API switches, and Open, Re-register and Fix buttons" width="380"><br><b>Advanced.</b> The HTTP service, the usage-API fallback, and the repairs: open <code>/status</code>, re-register hooks, fix firewall access.</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/settings-notify-waiting.png" alt="The settings window's Notify page, When waiting section: Show a card and Play a sound both on, Meow chosen" width="380"><br><b>When waiting.</b> When Claude needs you — a permission prompt or a question — show a card, play a sound, or both. The dog pants or woofs; the cat purrs or meows. The card is on by default; the sound is off.</td>
+<td width="50%" valign="top"><img src="docs/images/settings-notify-waiting.png" alt="The settings window's Notify page, When waiting section: Show a card and Play a sound both on, Meow chosen" width="380"><br><b>When waiting.</b> When Claude needs you — a permission prompt or a question — show a card, play a sound, or both. The dog pants or woofs; the cat purrs or meows; the bot chirps or clamps; the duck quacks or flies away. The card is on by default; the sound is off.</td>
 <td width="50%" valign="top"><img src="docs/images/settings-notify-idle.png" alt="The settings window's Notify page, When idle section: Show a card and Play a sound both on, Purr chosen" width="380"><br><b>When idle.</b> The same choices for when Claude finishes its turn: a <i>YOUR TURN</i> card, a sound, or both, with its own choice of sound. Off by default.</td>
 </tr>
 <tr>
@@ -135,7 +135,9 @@ Worth knowing before you install anything that hooks into Claude Code:
 - **It lists your open apps** — process names and their executable descriptions — only when the
   settings window opens or you switch to its **Notify** page, to offer them as choices for **When
   notification is clicked**. It keeps nothing
-  from that list but the one process name you pick, and never sends or serves it.
+  from that list but the one process name you pick, and never sends or serves it. When a click
+  brings that app forward, it reads the titles of that app's windows, to pick the one running
+  Claude Code; the titles are compared and forgotten, never stored, sent or served.
 - **It writes** `%LOCALAPPDATA%\BorisCodeStatus\` (state, preferences, and `error.log` — the stack
   trace of any unexpected error, kept to about 1 MB and never sent anywhere) and adds entries
   to `~/.claude/settings.json`, after backing that file up once.
@@ -643,8 +645,8 @@ both or neither works for each.
   (`dog-woof.flag`, `cat-meow.flag`, `idle-dog-woof.flag`, `idle-cat-meow.flag`, and
   `bot-alternate.flag`, `duck-alternate.flag` and their `idle-` twins), so switching pets keeps
   every choice. Picking a sound, or switching one on, plays it. The bot **chirps** by default and
-  can **clamp**; the duck **quacks** by default and can **fly away** — the one long sound, about 26
-  seconds, cut short by the next sound to play.
+  can **clamp**; the duck **quacks** by default and can **fly away** — the longest sound at 8 seconds,
+  cut short by the next sound to play.
 - The recordings are by [freesound_community](https://pixabay.com/users/freesound_community-46691455/)
   on Pixabay, used under the [Pixabay Content License](https://pixabay.com/service/license-summary/)
   rather than this project's licence (see [Third-party components](#third-party-components)). They are 16-bit PCM

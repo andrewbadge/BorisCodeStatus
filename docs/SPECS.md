@@ -248,7 +248,9 @@ Switching it off clears the fields it fetched. This is the app's only outbound c
 - Windows 10/11, x64, per user.
 - The settings window is sized for the DPI of the monitor it opens on.
 - At 125% and 150% scaling the 16 px tray sprite is centred rather than scaled.
-- *When notification is clicked* brings forward the first window of the chosen process, which may
-  not be the one running Claude.
+- *When notification is clicked* brings forward the chosen app's window whose title looks like
+  Claude Code's (a status glyph, then a space); with none, the front-most. The title format is
+  observed, not documented. It brings the window forward, not the tab within it, and with two
+  Claude windows the front-most wins.
 - The pinned card's position is checked against the monitors when it appears, not when monitors
   change while it is showing.
