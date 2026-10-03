@@ -29,20 +29,20 @@ public class SoundPreferenceTests : IDisposable
 
     /// <summary>Panting for the dog, purr for the cat, until the user picks otherwise.</summary>
     [Theory]
-    [InlineData(NotifyMoment.Waiting, false)]
-    [InlineData(NotifyMoment.Waiting, true)]
-    [InlineData(NotifyMoment.Idle, false)]
-    [InlineData(NotifyMoment.Idle, true)]
-    public void EachPetStartsOnItsDefaultSound(NotifyMoment moment, bool cat) =>
-        Assert.False(SoundPreference.UsesAlternate(moment, cat, Flag($"{moment}-{cat}.flag")));
+    [InlineData(NotifyMoment.Waiting, Pet.Dog)]
+    [InlineData(NotifyMoment.Waiting, Pet.Cat)]
+    [InlineData(NotifyMoment.Idle, Pet.Bot)]
+    [InlineData(NotifyMoment.Idle, Pet.Duck)]
+    public void EachPetStartsOnItsDefaultSound(NotifyMoment moment, Pet pet) =>
+        Assert.False(SoundPreference.UsesAlternate(moment, pet, Flag($"{moment}-{pet}.flag")));
 
     [Fact]
     public void ThePetsKeepSeparateChoices()
     {
-        SoundPreference.TrySetAlternate(NotifyMoment.Waiting, cat: false, alternate: true, Flag("dog-woof.flag"));
+        SoundPreference.TrySetAlternate(NotifyMoment.Waiting, Pet.Dog, alternate: true, Flag("dog-woof.flag"));
 
-        Assert.True(SoundPreference.UsesAlternate(NotifyMoment.Waiting, cat: false, Flag("dog-woof.flag")));
-        Assert.False(SoundPreference.UsesAlternate(NotifyMoment.Waiting, cat: true, Flag("cat-meow.flag")));
+        Assert.True(SoundPreference.UsesAlternate(NotifyMoment.Waiting, Pet.Dog, Flag("dog-woof.flag")));
+        Assert.False(SoundPreference.UsesAlternate(NotifyMoment.Waiting, Pet.Cat, Flag("cat-meow.flag")));
     }
 
     /// <summary>A turn ends far more often than a prompt appears, so its card must be asked for.</summary>

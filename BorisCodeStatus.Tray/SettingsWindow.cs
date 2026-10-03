@@ -62,8 +62,7 @@ internal sealed class SettingsWindow : Form
     private readonly Panel _apps;
     private readonly Choice _dismissOnly;
     private readonly MomentControls[] _moments;
-    private readonly Choice _dog;
-    private readonly Choice _cat;
+    private readonly Dictionary<Pet, Choice> _pets = [];
 
     [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
     private static extern int SetWindowTheme(IntPtr window, string? subAppName, string? subIdList);
@@ -167,22 +166,24 @@ internal sealed class SettingsWindow : Form
         };
         Row(cardGroup, 1, "Mini status card", _mini);
 
-        cardPage.Controls.Add(new PixelText("Are you a dog or a cat person?", Ink, scale: 1, tracking: 2, bold: true) { Location = P(Margin96, 196) });
-        var petGroup = Group(cardPage, 216, rows: 1);
-        _dog = new Choice("Dog", _body, DogSprites.Tray(DogState.Idle, cat: false)) { Bounds = R(16, 8, 200, 40) };
-        _dog.Click += (_, _) =>
+        cardPage.Controls.Add(new PixelText("Who keeps you company?", Ink, scale: 1, tracking: 2, bold: true) { Location = P(Margin96, 196) });
+        var petGroup = Group(cardPage, 216, rows: 2);
+        foreach (var pet in Enum.GetValues<Pet>())
         {
-            _tray.SetCat(false);
-            RefreshFromTray();
-        };
-        _cat = new Choice("Cat", _body, DogSprites.Tray(DogState.Idle, cat: true)) { Bounds = R(16 + ((GroupWidth - 32) / 2), 8, 200, 40) };
-        _cat.Click += (_, _) =>
-        {
-            _tray.SetCat(true);
-            RefreshFromTray();
-        };
-        petGroup.Controls.Add(_dog);
-        petGroup.Controls.Add(_cat);
+            var index = (int)pet;
+            var label = pet switch { Pet.Bot => "Sentry bot", Pet.Duck => "Rubber duck", _ => pet.ToString() };
+            var choice = new Choice(label, _body, DogSprites.Tray(DogState.Idle, pet))
+            {
+                Bounds = R(16 + (index % 2 * ((GroupWidth - 32) / 2)), 8 + (index / 2 * RowHeight), 200, 40),
+            };
+            choice.Click += (_, _) =>
+            {
+                _tray.SetPet(pet);
+                RefreshFromTray();
+            };
+            _pets[pet] = choice;
+            petGroup.Controls.Add(choice);
+        }
 
         // Advanced.
         var advancedPage = _pages[2];
@@ -250,14 +251,17 @@ internal sealed class SettingsWindow : Form
         {
             m.Card.On = _tray.CardOn(m.Moment);
             m.Sound.On = _tray.SoundOn(m.Moment);
-            m.Default.Text = _tray.IsCat ? "Purr (default)" : "Panting (default)";
-            m.Alternate.Text = _tray.IsCat ? "Meow" : "Woof";
+            var names = WaitingSound.Names(_tray.Pet);
+            m.Default.Text = $"{names.Default} (default)";
+            m.Alternate.Text = names.Alternate;
             m.Default.On = !_tray.SoundAlternate(m.Moment);
             m.Alternate.On = _tray.SoundAlternate(m.Moment);
         }
 
-        _dog.On = !_tray.IsCat;
-        _cat.On = _tray.IsCat;
+        foreach (var (pet, choice) in _pets)
+        {
+            choice.On = pet == _tray.Pet;
+        }
         _dismissOnly.On = current is null;
         foreach (var choice in _apps.Controls.OfType<Choice>())
         {

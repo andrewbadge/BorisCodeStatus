@@ -36,7 +36,8 @@
 
   <ItemGroup>
     <!-- The waiting sounds, embedded rather than copied: the MSI harvests the output folder, and
-         a resource cannot be left behind or deleted from the install. Recorded for this project. -->
+         a resource cannot be left behind or deleted from the install. By freesound_community on
+         Pixabay, under the Pixabay Content License - see the README's Third-party components. -->
     <EmbeddedResource Include="Sounds\*.wav" LogicalName="Sounds.%(Filename)%(Extension)" />
   </ItemGroup>
 

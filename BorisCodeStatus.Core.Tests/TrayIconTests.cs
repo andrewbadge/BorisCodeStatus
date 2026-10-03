@@ -1,22 +1,30 @@
 using BorisCodeStatus.Core.Models;
+using BorisCodeStatus.Core.State;
 using BorisCodeStatus.Tray;
 
 namespace BorisCodeStatus.Core.Tests;
 
 public class TrayIconTests
 {
-    [Theory]
-    [InlineData(DogState.Sleeping, false)]
-    [InlineData(DogState.Idle, false)]
-    [InlineData(DogState.Working, false)]
-    [InlineData(DogState.Waiting, false)]
-    [InlineData(DogState.Sleeping, true)]
-    [InlineData(DogState.Idle, true)]
-    [InlineData(DogState.Working, true)]
-    [InlineData(DogState.Waiting, true)]
-    public void TraySpriteIsSquareAndInPalette(DogState state, bool cat)
+    public static TheoryData<DogState, Pet> EveryPose()
     {
-        var (rows, palette) = DogSprites.Tray(state, cat);
+        var data = new TheoryData<DogState, Pet>();
+        foreach (var pet in Enum.GetValues<Pet>())
+        {
+            foreach (var state in Enum.GetValues<DogState>())
+            {
+                data.Add(state, pet);
+            }
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryPose))]
+    public void TraySpriteIsSquareAndInPalette(DogState state, Pet pet)
+    {
+        var (rows, palette) = DogSprites.Tray(state, pet);
 
         Assert.Equal(DogSprites.Size, rows.Length);
         Assert.All(rows, row => Assert.Equal(DogSprites.Size, row.Length));
@@ -24,23 +32,44 @@ public class TrayIconTests
     }
 
     [Fact]
-    public void CatPortraitsAreRectangularAndInPalette()
+    public void PortraitsAreRectangularAndInPalette()
     {
-        foreach (var rows in new[] { DogSprites.CatPortrait, DogSprites.CatSleepingPortrait })
+        var portraits = new[] { Pet.Cat, Pet.Bot, Pet.Duck }
+            .Select(p => DogSprites.Portrait(p)!.Value)
+            .Append((DogSprites.CatSleepingPortrait, DogSprites.CatPalette));
+
+        foreach (var (rows, palette) in portraits)
         {
             Assert.All(rows, row => Assert.Equal(rows[0].Length, row.Length));
-            Assert.All(rows.SelectMany(r => r), cell => Assert.InRange(DogSprites.IndexOf(cell), 0, DogSprites.CatPalette.Length - 1));
+            Assert.All(rows.SelectMany(r => r), cell => Assert.InRange(DogSprites.IndexOf(cell), 0, palette.Length - 1));
         }
     }
 
-    /// <summary>Every pose must look different, or the cat would hide a state change.</summary>
-    [Fact]
-    public void EachCatPoseIsDistinct()
+    /// <summary>Every pose must look different, or the pet would hide a state change.</summary>
+    [Theory]
+    [InlineData(Pet.Dog)]
+    [InlineData(Pet.Cat)]
+    [InlineData(Pet.Bot)]
+    [InlineData(Pet.Duck)]
+    public void EachPoseIsDistinct(Pet pet)
     {
-        var grids = new[] { DogState.Sleeping, DogState.Idle, DogState.Working, DogState.Waiting }
-            .Select(s => string.Concat(DogSprites.Tray(s, cat: true).Grid));
+        var grids = Enum.GetValues<DogState>().Select(s => string.Concat(DogSprites.Tray(s, pet).Grid));
 
         Assert.Equal(4, grids.Distinct().Count());
+    }
+
+    /// <summary>A missing recording plays silence rather than failing, so only this would notice.</summary>
+    [Theory]
+    [InlineData(Pet.Dog)]
+    [InlineData(Pet.Cat)]
+    [InlineData(Pet.Bot)]
+    [InlineData(Pet.Duck)]
+    public void EverySoundIsEmbedded(Pet pet)
+    {
+        var embedded = typeof(TrayIconRenderer).Assembly.GetManifestResourceNames();
+
+        Assert.Contains(WaitingSound.ResourceName(pet, alternate: false), embedded);
+        Assert.Contains(WaitingSound.ResourceName(pet, alternate: true), embedded);
     }
 
     [Theory]

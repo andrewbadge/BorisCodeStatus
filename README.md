@@ -55,7 +55,7 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
 <table>
 <tr>
 <td width="50%" valign="top"><img src="docs/images/waiting-card.png" alt="The waiting card with the dog: INPUT NEEDED, Claude is waiting for your input" width="354"><br><b>Waiting card.</b> Pops up when Claude needs you, quoting what it is asking for. A countdown bar, held while you hover; it vanishes once the prompt is answered. Never steals focus from the terminal.</td>
-<td width="50%" valign="top"><img src="docs/images/waiting-card-cat.png" alt="The waiting card with the sitting orange cat: PERMISSION NEEDED, Claude needs your permission to use Bash" width="354"><br><b>Dog or cat.</b> <i>Are you a dog or a cat person?</i> — pick the cat and it replaces Fido in the tray, on the waiting card and on the status card.</td>
+<td width="50%" valign="top"><img src="docs/images/waiting-card-cat.png" alt="The waiting card with the sitting orange cat: PERMISSION NEEDED, Claude needs your permission to use Bash" width="354"><br><b>Pick a pet.</b> <i>Who keeps you company?</i> — pick the cat, a sentry bot or a rubber duck and it replaces Fido in the tray, on the waiting card and on the status card.</td>
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/images/status-card-dog.png" alt="The status card with the dog: WAITING, 5h 6% used, reset time, week figure, model and settings, over a green gauge" width="354"><br><b>Status card.</b> Double-click the tray icon for the current state, the 5-hour and weekly figures, the model, and the session gauge in its quota colour.</td>
@@ -497,11 +497,15 @@ ring sits behind and shows in the gaps. The design's 32px and 64px icons are exa
 doubled and quadrupled, so larger sizes are whole-pixel integer scales — any interpolation
 destroys pixel art. At 125%/150% scaling the dog stays 16px with a margin.
 
-### Dog or cat
+### Pick a pet
 
-**Settings → Card → Are you a dog or a cat person?** swaps Fido for an orange cat everywhere the
-tray draws one: the tray icon, the waiting card (a sitting cat, in place of the dog's portrait) and
-the status card. The dog is the default, so the marker file, `cat-person.flag`, means cat. The cat's
+**Settings → Card → Who keeps you company?** swaps Fido for an orange cat, a sentry bot or a rubber
+duck everywhere the tray draws one: the tray icon, the waiting card (each has its own portrait in
+place of the dog's — the bot waves, the duck holds up a "!" sign) and the status card. The choice is
+stored by name in `pet.txt`; the dog is the default, so it is the file's absence. Versions before the
+bot and duck marked the cat with `cat-person.flag`, which is still read when `pet.txt` is missing so
+an upgrade keeps the cat. The bot's eye and antenna and the duck's badge show the pose; neither
+design has a sleeping pose, so each sleeps as its idle face with the eye off or shut. The cat's
 sprites live in `DogSprites.cs` beside the dog's, on their own palette, transcribed from the
 design's sheets the same way. Two notes: the cat's idle face carries a green badge where the
 dog's has none, as drawn; and the design's sleeping cat is curled up and too wide for 16px, so
@@ -544,7 +548,7 @@ HTTP and notifications are on, since neither is visible anywhere else), **Sessio
 **Week · 7d**, each with its figure, a twenty-segment gauge in the ring's colours and the reset time.
 They update live while the window is open. Below, three pages: **Notify** — for *When waiting* and *When idle*, a card, a sound and which sound,
 and the app a click on a card brings forward; **Card** — *Keep status card on screen*
-and *Mini status card*, and *Are you a dog or a cat person?*; **Advanced** — *Enable HTTP service*, *Use usage API for Sonnet quota*, and
+and *Mini status card*, and *Who keeps you company?*; **Advanced** — *Enable HTTP service*, *Use usage API for Sonnet quota*, and
 the repairs: **Open in browser** (opens `/status`), **Re-register hooks** and **Fix firewall
 access…**, greyed out while the HTTP service is off. **Close** sits at the bottom;
 Esc closes too, and the strip above the tiles drags the window.
@@ -593,7 +597,10 @@ layout belongs to Windows, so none of that is possible there. Details worth know
   your terminal, a browser, anything with a window open. It is **off by default** (*Just
   dismiss*). The page lists the apps open at that moment; the choice is stored as a process
   name in `card-click-app.txt`, so it still works after the app restarts. With several windows of
-  that app open, the first one Windows reports is the one that comes forward.
+  that app open, the one whose title looks like Claude Code's — a status glyph and a space before
+  the topic, such as `✳ Fix the login bug` — comes forward, so Visual Studio's debug console beside
+  it is skipped. That title format is observed, not documented; with no match, the front-most
+  window of the app wins. It brings the window forward, not the tab within it.
   `Y / N` beside the bar says what Claude is asking, not a key to press on the card.
 - **The bar is a countdown** — 12 seconds, held while the pointer is over the card — and the card
   **disappears as soon as the prompt is answered**, because leaving `Waiting` dismisses it.
@@ -633,9 +640,14 @@ both or neither works for each.
   starts is not announced.
 - **The sounds follow the pet:** the dog **pants** by default and can **woof** instead; the cat
   **purrs** by default and can **meow** — chosen separately for each moment and each pet
-  (`dog-woof.flag`, `cat-meow.flag`, `idle-dog-woof.flag`, `idle-cat-meow.flag`), so switching
-  pets keeps every choice. Picking a sound, or switching one on, plays it.
-- The four recordings were made for this project and ship under its licence. They are 16-bit PCM
+  (`dog-woof.flag`, `cat-meow.flag`, `idle-dog-woof.flag`, `idle-cat-meow.flag`, and
+  `bot-alternate.flag`, `duck-alternate.flag` and their `idle-` twins), so switching pets keeps
+  every choice. Picking a sound, or switching one on, plays it. The bot **chirps** by default and
+  can **clamp**; the duck **quacks** by default and can **fly away** — the one long sound, about 26
+  seconds, cut short by the next sound to play.
+- The recordings are by [freesound_community](https://pixabay.com/users/freesound_community-46691455/)
+  on Pixabay, used under the [Pixabay Content License](https://pixabay.com/service/license-summary/)
+  rather than this project's licence (see [Third-party components](#third-party-components)). They are 16-bit PCM
   WAV, embedded in the tray assembly (`BorisCodeStatus.Tray/Sounds`), because the built-in
   `SoundPlayer` plays only WAV and an embedded resource needs nothing from the installer.
 
@@ -885,6 +897,7 @@ The MSI bundles components that are not covered by this project's license:
 |---|---|---|
 | .NET runtime and ASP.NET Core | MIT | Self-contained in both executables |
 | WiX Toolset v4 utility custom action (`Wix4UtilCA`) | MS-RL | Inside the MSI, used to close and launch the tray during install |
+| Notification sounds, by [freesound_community](https://pixabay.com/users/freesound_community-46691455/) on Pixabay | [Pixabay Content License](https://pixabay.com/service/license-summary/) | Embedded in `BorisCodeStatus.Tray.exe` (`BorisCodeStatus.Tray/Sounds`) |
 
 The WiX custom action runs only during installation and is not linked into the program. The test
 suite additionally uses xUnit (Apache 2.0) and coverlet (MIT) at build time; neither ships.

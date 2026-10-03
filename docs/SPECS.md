@@ -109,10 +109,11 @@ appear here.
 
 - **Drawn at runtime** at the tray's real small-icon size (16 px at 100%), never resampled. The
   16 px sprite is integer-scaled where the size allows (×2 at 200%); otherwise it is centred.
-- **Sprites** are palette-index grids in `DogSprites.cs`: four poses for the dog and four for the
-  cat. Each pose carries a badge: the dog's idle face has none; the cat's idle face has a green one.
+- **Sprites** are palette-index grids in `DogSprites.cs`: four poses each for the dog, the cat,
+  the sentry bot and the rubber duck. Each pose carries a badge: the dog's idle face has none; the cat's idle face has a green one.
   The cat's sleeping tray face is derived from its idle face; the designer's curled-up sleeping cat
-  appears on the full status card only.
+  appears on the full status card only. The bot's and duck's sleeping faces are derived the same
+  way (eye off; eye shut with a lavender badge), as their designs have none.
 - **Quota ring** behind the pet shows the 5-hour session used. It is drawn ⅛ of the icon thick
   (2 px at 16 px). Colour: green below 50%, amber from 50% to 75% inclusive, red above 75%. With no
   data it is a faint track only. It redraws on a change of pose, of pet, or of 5% bucket.
@@ -161,7 +162,7 @@ Two moments, each with three independent settings:
 |---|---|---|
 | Show a card | **On** | Off |
 | Play a sound | Off | Off |
-| Which sound | Dog: Panting (default) / Woof · Cat: Purr (default) / Meow | same, chosen separately |
+| Which sound | Dog: Panting (default) / Woof · Cat: Purr (default) / Meow · Bot: Chirp (default) / Clamp · Duck: Quack (default) / Fly away | same, chosen separately |
 
 - The sound plays once, on the transition, alongside the card if both are on. A new sound stops
   one still playing.
@@ -187,7 +188,7 @@ change.
   the pose in its colour, plus HTTP and notify state. **Session · 5h** and **Week · 7d** each show
   the figure, a 20-segment gauge in the ring's colours, and the reset time.
 - **Notify**: *When waiting*, *When idle* (§7), *When notification is clicked*.
-- **Card**: *Keep status card on screen*, *Mini status card*, *Are you a dog or a cat person?*
+- **Card**: *Keep status card on screen*, *Mini status card*, *Who keeps you company?* (dog, cat, sentry bot, rubber duck)
 - **Advanced**: *Enable HTTP service*; *Use usage API for Sonnet quota*; **Open in browser**
   (`/status`); **Re-register hooks**; **Fix firewall access…** (disabled while HTTP is off).
 
@@ -212,7 +213,9 @@ and kept in step by its control.
 | `status-card-pinned.flag` | Status card pinned | Snapshot on double-click |
 | `status-card-mini.flag` | Mini status card | Full card |
 | `status-card-position.txt` | `x,y` of the pinned card, in screen pixels | Bottom-right of the primary working area |
-| `cat-person.flag` | Cat | Dog |
+| `pet.txt` | Holds the pet's name: `Cat`, `Bot` or `Duck` | Dog |
+| `cat-person.flag` | Cat (read only when `pet.txt` is missing; removed by the next choice) | Dog |
+| `bot-alternate.flag` / `duck-alternate.flag` (and `idle-` twins) | Bot / duck plays its second sound | Its default |
 
 The same folder also holds `state.json`, `usage-api.stamp` and `error.log`.
 

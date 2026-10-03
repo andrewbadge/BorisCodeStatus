@@ -1,5 +1,6 @@
 using System.Drawing;
 using BorisCodeStatus.Core.Models;
+using BorisCodeStatus.Core.State;
 
 namespace BorisCodeStatus.Tray;
 
@@ -337,16 +338,289 @@ internal static class DogSprites
         "000111111111111111",
     ];
 
-    /// <summary>The tray sprite for a pose, as the dog or the cat, with the palette it indexes.</summary>
-    public static (string[] Grid, Color[] Palette) Tray(DogState state, bool cat) => cat
-        ? (state switch
-        {
-            DogState.Working => CatWorking,
-            DogState.Waiting => CatWaiting,
-            DogState.Idle => CatIdle,
-            _ => CatSleeping,
-        }, CatPalette)
-        : (For(state), TrayPalette);
+    /// <summary>
+    /// The sentry bot's palette, sampled exactly from the design's PNGs. Its eye and antenna tip are
+    /// the badge: unlit red at idle, lit red working, amber waiting.
+    /// </summary>
+    public static readonly Color[] BotPalette =
+    [
+        Color.Transparent,                // 0
+        Color.FromArgb(0x70, 0x1E, 0x1E), // 1 unlit eye and antenna
+        Color.FromArgb(0x24, 0x2C, 0x36), // 2 outline
+        Color.FromArgb(0xC3, 0xCC, 0xD6), // 3 light steel
+        Color.FromArgb(0x8A, 0x97, 0xA6), // 4 steel
+        Color.FromArgb(0x12, 0x16, 0x1B), // 5 visor
+        Color.FromArgb(0x4B, 0x56, 0x63), // 6 dark steel
+        Color.FromArgb(0xFF, 0x3B, 0x30), // 7 working, red
+        Color.FromArgb(0xFF, 0xB0, 0xA0), // 8 red glint
+        Color.FromArgb(0xFF, 0xB0, 0x2E), // 9 waiting, amber
+        Color.FromArgb(0xFF, 0xE6, 0x96), // A amber glint
+    ];
+
+    private static readonly string[] BotIdle =
+    [
+        "0000000110000000",
+        "0000000220000000",
+        "0022222222222200",
+        "0023333333333200",
+        "0024444444444200",
+        "0025555555555200",
+        "0025511111155200",
+        "0025555555555200",
+        "0025555555555200",
+        "0024444444444200",
+        "0024646446464200",
+        "0022222222222200",
+        "0000026666200000",
+        "0222222222222220",
+        "0243344444433420",
+        "0222222222222220",
+    ];
+
+    private static readonly string[] BotWorking =
+    [
+        "0000000770000000",
+        "0000000220000000",
+        "0022222222222200",
+        "0023333333333200",
+        "0024444444444200",
+        "0025555555555200",
+        "0025777887775200",
+        "0025777777775200",
+        "0025555555555200",
+        "0024444444444200",
+        "0024646446464200",
+        "0022222222222200",
+        "0000026666200000",
+        "0222222222222220",
+        "0243344444433420",
+        "0222222222222220",
+    ];
+
+    private static readonly string[] BotWaiting =
+    [
+        "0000000990000000",
+        "0000000220000000",
+        "0022222222222200",
+        "0023333333333200",
+        "0024444444444200",
+        "0025555555555200",
+        "0025999AA9995200",
+        "0025999999995200",
+        "0025555555555200",
+        "0024444444444200",
+        "0024646446464200",
+        "0022222222222200",
+        "0000026666200000",
+        "0222222222222220",
+        "0243344444433420",
+        "0222222222222220",
+    ];
+
+    /// <summary>Derived, not drawn by the designer: the idle bot with its eye switched off.</summary>
+    private static readonly string[] BotSleeping =
+    [
+        "0000000110000000",
+        "0000000220000000",
+        "0022222222222200",
+        "0023333333333200",
+        "0024444444444200",
+        "0025555555555200",
+        "0025555555555200",
+        "0025555555555200",
+        "0025555555555200",
+        "0024444444444200",
+        "0024646446464200",
+        "0022222222222200",
+        "0000026666200000",
+        "0222222222222220",
+        "0243344444433420",
+        "0222222222222220",
+    ];
+
+    /// <summary>The bot waving for the waiting card, 18×20, from the design's 108×120 sheet.</summary>
+    public static readonly string[] BotPortrait =
+    [
+        "000000099000000000",
+        "000000022000000000",
+        "000222222222222000",
+        "000233333333332000",
+        "000244444444442000",
+        "000255555555552000",
+        "00025999AA99952000",
+        "000259999999952222",
+        "000255555555552232",
+        "000244444444442232",
+        "000246464464642242",
+        "000222222222222242",
+        "000000026620000242",
+        "002222222222222220",
+        "242344444444443200",
+        "242466666666664200",
+        "242466669966664200",
+        "242466666666664200",
+        "242444444444444200",
+        "222222222222222200",
+    ];
+
+    /// <summary>The rubber duck's palette, sampled exactly from the design's PNGs, plus the dog's lavender.</summary>
+    public static readonly Color[] DuckPalette =
+    [
+        Color.Transparent,                // 0
+        Color.FromArgb(0x6E, 0x40, 0x06), // 1 outline
+        Color.FromArgb(0xFF, 0xD0, 0x00), // 2 yellow
+        Color.FromArgb(0xFF, 0xF2, 0x8C), // 3 highlight
+        Color.FromArgb(0x1E, 0x14, 0x0A), // 4 eye
+        Color.FromArgb(0xFF, 0x78, 0x18), // 5 beak
+        Color.FromArgb(0xE8, 0x96, 0x00), // 6 wing
+        Color.FromArgb(0x4C, 0xC2, 0x6A), // 7 idle badge, green
+        Color.FromArgb(0x4F, 0xA8, 0xE6), // 8 working badge and water, blue
+        Color.FromArgb(0xFF, 0xD2, 0x3F), // 9 waiting badge, yellow
+        Color.FromArgb(0xA0, 0xC8, 0xEB), // A Z's (unused here)
+        Color.FromArgb(0xFF, 0x8C, 0x6E), // B cheek
+        Color.FromArgb(0x2E, 0x6E, 0xA0), // C deep water
+        Color.FromArgb(0xFF, 0xB0, 0x2E), // D the "!" sign, amber
+        Color.FromArgb(0xFF, 0xFF, 0xFF), // E eye glint
+        Color.FromArgb(0xC8, 0xC8, 0xD7), // F sleeping badge, lavender
+    ];
+
+    private static readonly string[] DuckIdle =
+    [
+        "0000000000000000",
+        "0000111111000000",
+        "0001222222100000",
+        "0001232222100000",
+        "0001242222100000",
+        "0111222222100110",
+        "1551222222101210",
+        "0111222222222210",
+        "0012222222222210",
+        "0122226666222210",
+        "0122226336222210",
+        "0122226666211111",
+        "0012222222217771",
+        "0001622222217771",
+        "0000111111117771",
+        "0088888888811111",
+    ];
+
+    private static readonly string[] DuckWorking =
+    [
+        "0000000000000000",
+        "0000111111000000",
+        "0001222222100000",
+        "0001232222100000",
+        "0001242222100000",
+        "0111222222100110",
+        "1551222222101210",
+        "0111222222222210",
+        "0012222222222210",
+        "0122226666222210",
+        "0122226336222210",
+        "0122226666211111",
+        "0012222222218881",
+        "0001622222218881",
+        "0000111111118881",
+        "0088888888811111",
+    ];
+
+    private static readonly string[] DuckWaiting =
+    [
+        "0000000000000000",
+        "0000111111000000",
+        "0001222222100000",
+        "0001232222100000",
+        "0001242222100000",
+        "0111222222100110",
+        "1551222222101210",
+        "0111222222222210",
+        "0012222222222210",
+        "0122226666222210",
+        "0122226336222210",
+        "0122226666211111",
+        "0012222222219991",
+        "0001622222219991",
+        "0000111111119991",
+        "0088888888811111",
+    ];
+
+    /// <summary>Derived, not drawn by the designer: the idle duck with its eye shut and the lavender badge.</summary>
+    private static readonly string[] DuckSleeping =
+    [
+        "0000000000000000",
+        "0000111111000000",
+        "0001222222100000",
+        "0001232222100000",
+        "0001212222100000",
+        "0111222222100110",
+        "1551222222101210",
+        "0111222222222210",
+        "0012222222222210",
+        "0122226666222210",
+        "0122226336222210",
+        "0122226666211111",
+        "001222222221FFF1",
+        "000162222221FFF1",
+        "000011111111FFF1",
+        "0088888888811111",
+    ];
+
+    /// <summary>The duck holding up its "!" sign for the waiting card, 18×23, from the design's 108×138 sheet.</summary>
+    public static readonly string[] DuckPortrait =
+    [
+        "000000000000111110",
+        "000000000001D444D1",
+        "000000000001DDD4D1",
+        "000000000001DD4DD1",
+        "000000000001DDDDD1",
+        "000001111111DD4DD1",
+        "000012222221111110",
+        "000123322222100000",
+        "000122222222100000",
+        "00012E422222100011",
+        "011124422222100121",
+        "1551B2222222101221",
+        "155122222222101221",
+        "011122222222222221",
+        "001222222222222221",
+        "012222226666622221",
+        "012222263336222221",
+        "012222226666622221",
+        "001222222222222221",
+        "000162222222222610",
+        "000011111111111100",
+        "008888888888888800",
+        "0000CCCCCCCCCC0000",
+    ];
+
+    /// <summary>The tray sprite for a pose, as the chosen pet, with the palette it indexes.</summary>
+    public static (string[] Grid, Color[] Palette) Tray(DogState state, Pet pet) => pet switch
+    {
+        Pet.Cat => (Pick(state, CatIdle, CatWorking, CatWaiting, CatSleeping), CatPalette),
+        Pet.Bot => (Pick(state, BotIdle, BotWorking, BotWaiting, BotSleeping), BotPalette),
+        Pet.Duck => (Pick(state, DuckIdle, DuckWorking, DuckWaiting, DuckSleeping), DuckPalette),
+        _ => (For(state), TrayPalette),
+    };
+
+    /// <summary>
+    /// The large waiting-card portrait for the cat, bot or duck; null for the dog, whose portrait
+    /// blinks its bang and is drawn separately.
+    /// </summary>
+    public static (string[] Grid, Color[] Palette)? Portrait(Pet pet) => pet switch
+    {
+        Pet.Cat => (CatPortrait, CatPalette),
+        Pet.Bot => (BotPortrait, BotPalette),
+        Pet.Duck => (DuckPortrait, DuckPalette),
+        _ => null,
+    };
+
+    private static string[] Pick(DogState state, string[] idle, string[] working, string[] waiting, string[] sleeping) => state switch
+    {
+        DogState.Working => working,
+        DogState.Waiting => waiting,
+        DogState.Idle => idle,
+        _ => sleeping,
+    };
 
     public static string[] For(DogState state) => state switch
     {

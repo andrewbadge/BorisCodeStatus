@@ -93,36 +93,77 @@ internal static class WindowActivator
         return [.. apps.Select(a => (a.Key, a.Value)).OrderBy(a => a.Value, StringComparer.CurrentCultureIgnoreCase)];
     }
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(IntPtr window, char[] text, int maxCount);
+
     /// <summary>
-    /// Restores and focuses the first main window of the named process. Returns false when no
-    /// such app is running. Called from the card's click, and the click is the user input that
-    /// lets Windows allow the focus change.
+    /// Restores and focuses a window of the named process, preferring one whose title looks like
+    /// Claude Code's (<see cref="LooksLikeClaude"/>) — so with Visual Studio's debug console open
+    /// beside it, the click still lands on Claude. Returns false when no such app is running.
+    /// Called from the card's click, and the click is the user input that lets Windows allow the
+    /// focus change.
     /// </summary>
-    // ponytail: first window of that process wins, so with two terminal windows open it may not
-    // be the one running Claude. Matching on the session's cwd in the window title would fix it.
     public static bool BringToFront(string processName)
     {
+        var processIds = new HashSet<uint>();
         foreach (var process in Process.GetProcessesByName(processName))
         {
-            using (process)
-            {
-                var window = process.MainWindowHandle;
-                if (window == IntPtr.Zero)
-                {
-                    continue;
-                }
-
-                if (IsIconic(window))
-                {
-                    ShowWindow(window, SW_RESTORE);
-                }
-
-                return SetForegroundWindow(window);
-            }
+            processIds.Add((uint)process.Id);
+            process.Dispose();
         }
 
-        return false;
+        var windows = new List<(IntPtr Window, string Title)>();
+        EnumWindows(
+            (window, _) =>
+            {
+                GetWindowThreadProcessId(window, out var processId);
+                if (processIds.Contains(processId) && IsWindowVisible(window) && GetWindow(window, GW_OWNER) == IntPtr.Zero)
+                {
+                    var buffer = new char[512];
+                    var length = GetWindowText(window, buffer, buffer.Length);
+                    if (length > 0)
+                    {
+                        windows.Add((window, new string(buffer, 0, length)));
+                    }
+                }
+
+                return true;
+            },
+            IntPtr.Zero);
+
+        if (windows.Count == 0)
+        {
+            return false;
+        }
+
+        // Enumeration is in Z order, so with no Claude-looking title the most recently used wins.
+        var target = windows.FirstOrDefault(w => LooksLikeClaude(w.Title)).Window;
+        if (target == IntPtr.Zero)
+        {
+            target = windows[0].Window;
+        }
+
+        if (IsIconic(target))
+        {
+            ShowWindow(target, SW_RESTORE);
+        }
+
+        return SetForegroundWindow(target);
     }
+
+    /// <summary>
+    /// Claude Code titles its terminal with the conversation's topic behind a status glyph
+    /// ("✳ Fix the login bug", "◐ Opening Claude terminal"); a shell or a debug console shows a
+    /// name or a path. Observed, not documented — if Claude Code changes its title format this
+    /// stops matching and the click falls back to the front-most window.
+    /// </summary>
+    // ponytail: two Claude sessions in separate windows → the front-most one wins.
+    internal static bool LooksLikeClaude(string title) =>
+        title.Length > 2
+        && title[1] == ' '
+        && !char.IsLetterOrDigit(title[0])
+        && !char.IsWhiteSpace(title[0])
+        && title[0] is not ('"' or '\'' or '(' or '[' or '-' or '.' or '\\' or '/' or '~');
 
     private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 

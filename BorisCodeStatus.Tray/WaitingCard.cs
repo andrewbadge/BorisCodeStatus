@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using BorisCodeStatus.Core.Models;
+using BorisCodeStatus.Core.State;
 
 namespace BorisCodeStatus.Tray;
 
@@ -147,9 +148,9 @@ internal sealed class WaitingCard : Form
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool Mini { get; set; }
 
-    /// <summary>Draw the cat instead of the dog: its portrait on the waiting card, its tray sprites elsewhere.</summary>
+    /// <summary>Who to draw: their portrait on the waiting card, their tray sprites elsewhere.</summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public bool Cat { get; set; }
+    public Pet Pet { get; set; }
 
     private const int WM_NCHITTEST = 0x0084;
     private const int HTCAPTION = 2;
@@ -540,7 +541,7 @@ internal sealed class WaitingCard : Form
     /// <summary>Blits the portrait a design pixel at a time, as whole device-pixel squares.</summary>
     private void DrawDog(Graphics graphics, int originX, int originY)
     {
-        if (_content.Dog is DogState.Sleeping && Cat)
+        if (_content.Dog is DogState.Sleeping && Pet == Pet.Cat)
         {
             // 22×14 at five design pixels is 110×70: centred on the tray sprite's 96×96 square.
             var cell = Math.Max(1, (int)Math.Round(5 * DpiScale));
@@ -554,10 +555,11 @@ internal sealed class WaitingCard : Form
             return;
         }
 
-        if (Cat)
+        if (DogSprites.Portrait(Pet) is var (portrait, portraitPalette))
         {
-            // 18×20 at five design pixels is 90×100, the dog portrait's footprint at four.
-            DrawGrid(graphics, DogSprites.CatPortrait, DogSprites.CatPalette, originX, originY, Math.Max(1, (int)Math.Round(5 * DpiScale)));
+            // 18 wide at five design pixels is 90×100 for 20 rows, the dog portrait's footprint at
+            // four. The duck's 23 rows are centred on that footprint rather than hung from its top.
+            DrawGrid(graphics, portrait, portraitPalette, originX, originY - L((portrait.Length - 20) * 5 / 2f), Math.Max(1, (int)Math.Round(5 * DpiScale)));
             return;
         }
 
@@ -622,7 +624,7 @@ internal sealed class WaitingCard : Form
     /// </summary>
     private void DrawTrayDog(Graphics graphics, DogState pose, int originX, int originY, int size)
     {
-        var (sprite, palette) = DogSprites.Tray(pose, Cat);
+        var (sprite, palette) = DogSprites.Tray(pose, Pet);
         DrawGrid(graphics, sprite, palette, originX, originY, size);
     }
 

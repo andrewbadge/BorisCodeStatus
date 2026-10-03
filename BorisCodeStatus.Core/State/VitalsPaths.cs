@@ -48,7 +48,10 @@ public static class VitalsPaths
     /// <summary>Present when the status card should be the mini one rather than the full card.</summary>
     public static string StatusCardMiniFlagFile => Path.Combine(DataDirectory, "status-card-mini.flag");
 
-    /// <summary>Present when the user picked the cat over the default dog. See <see cref="PetPreference"/>.</summary>
+    /// <summary>The chosen pet's name; absent for the default dog. See <see cref="PetPreference"/>.</summary>
+    public static string PetFile => Path.Combine(DataDirectory, "pet.txt");
+
+    /// <summary>The cat choice from before <see cref="PetFile"/>, read only when that is missing.</summary>
     public static string CatPersonFlagFile => Path.Combine(DataDirectory, "cat-person.flag");
 
     /// <summary>Present when a sound plays as Claude starts waiting. See <see cref="SoundPreference"/>.</summary>
