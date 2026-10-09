@@ -183,14 +183,17 @@ internal sealed class SettingsWindow : Form
         Row(cardGroup, 1, "Mini status card", _mini);
 
         cardPage.Controls.Add(new PixelText("Who keeps you company?", Ink, scale: 1, tracking: 2, bold: true) { Location = P(Margin96, 196) });
-        var petGroup = Group(cardPage, 216, rows: 2);
+        // Three rows for five pets, at 48 rather than the usual 56: at 56 the group would run past the
+        // page's 366px and grow a scrollbar for the sake of one row.
+        const int petRowHeight = 48;
+        var petGroup = Group(cardPage, 216, rows: 3, rowHeight: petRowHeight);
         foreach (var pet in Enum.GetValues<Pet>())
         {
             var index = (int)pet;
             var label = pet switch { Pet.Bot => "Sentry bot", Pet.Duck => "Rubber duck", _ => pet.ToString() };
             var choice = new Choice(label, _body, DogSprites.Tray(DogState.Idle, pet))
             {
-                Bounds = R(16 + (index % 2 * ((GroupWidth - 32) / 2)), 8 + (index / 2 * RowHeight), 200, 40),
+                Bounds = R(16 + (index % 2 * ((GroupWidth - 32) / 2)), 4 + (index / 2 * petRowHeight), 200, 40),
             };
             choice.Click += (_, _) =>
             {

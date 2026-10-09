@@ -33,6 +33,7 @@ public class SoundPreferenceTests : IDisposable
     [InlineData(NotifyMoment.Waiting, Pet.Cat)]
     [InlineData(NotifyMoment.Idle, Pet.Bot)]
     [InlineData(NotifyMoment.Idle, Pet.Duck)]
+    [InlineData(NotifyMoment.Waiting, Pet.Goat)]
     public void EachPetStartsOnItsDefaultSound(NotifyMoment moment, Pet pet) =>
         Assert.False(SoundPreference.UsesAlternate(moment, pet, Flag($"{moment}-{pet}.flag")));
 

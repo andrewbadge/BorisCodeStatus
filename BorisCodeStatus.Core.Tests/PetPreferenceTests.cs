@@ -20,6 +20,7 @@ public class PetPreferenceTests : IDisposable
     [InlineData(Pet.Cat)]
     [InlineData(Pet.Bot)]
     [InlineData(Pet.Duck)]
+    [InlineData(Pet.Goat)]
     [InlineData(Pet.Dog)]
     public void RemembersTheChoice(Pet pet)
     {

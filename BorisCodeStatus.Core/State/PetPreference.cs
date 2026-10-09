@@ -7,6 +7,7 @@ public enum Pet
     Cat,
     Bot,
     Duck,
+    Goat,
 }
 
 /// <summary>

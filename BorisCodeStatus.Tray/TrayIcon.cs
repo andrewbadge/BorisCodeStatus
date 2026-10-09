@@ -54,6 +54,12 @@ internal sealed class TrayIcon : IDisposable
     private DogState _renderedDog = (DogState)(-1);
     private int _renderedQuotaBucket = -1;
     private Pet _renderedPet = (Pet)(-1);
+
+    /// <summary>The goat's tongue frame last drawn; always 0 for a pet that does not wag.</summary>
+    private int _renderedFrame;
+
+    /// <summary>Redraws the tray icon on each wag frame. Runs only while the goat is chosen.</summary>
+    private readonly System.Windows.Forms.Timer _wagTimer;
     private bool _httpPersisted = true;
 
     /// <summary>
@@ -136,6 +142,11 @@ internal sealed class TrayIcon : IDisposable
         _poseTimer = new System.Windows.Forms.Timer { Interval = 30_000 };
         _poseTimer.Tick += (_, _) => Refresh(_store.Current);
         _poseTimer.Start();
+
+        // UpdateIcon, not Refresh: a wag is only a new frame of the same pose, and Refresh also
+        // raises notifications and redraws cards, which must fire on a transition, not on a timer.
+        _wagTimer = new System.Windows.Forms.Timer { Interval = (int)DogSprites.WagInterval.TotalMilliseconds, Enabled = _pet == Pet.Goat };
+        _wagTimer.Tick += (_, _) => UpdateIcon(_store.Current);
 
         _store.Changed += OnStateChanged;
         _store.StartWatching();
@@ -579,6 +590,7 @@ internal sealed class TrayIcon : IDisposable
         }
 
         _pet = pet;
+        _wagTimer.Enabled = pet == Pet.Goat;
         if (!PetPreference.TrySet(pet))
         {
             ShowBalloon("That preference could not be saved, so it will not survive a restart.", ToolTipIcon.Warning);
@@ -602,12 +614,16 @@ internal sealed class TrayIcon : IDisposable
         // renders per session rather than one per hook event.
         var bucket = state.Session?.UsedPercentage is { } used ? (int)(Math.Clamp(used, 0, 100) / 5) : -1;
         var dog = DogStates.For(state, DateTimeOffset.UtcNow);
-        if (dog == _renderedDog && bucket == _renderedQuotaBucket && _pet == _renderedPet && _currentIcon is not null)
+
+        // Only the goat has more than one frame per pose, and only while working or waiting, so every
+        // other case is frame 0 and the cache below behaves exactly as it did.
+        var frame = DogSprites.Wags(_pet, dog) ? DogSprites.WagFrame(DateTimeOffset.UtcNow) : 0;
+        if (dog == _renderedDog && bucket == _renderedQuotaBucket && _pet == _renderedPet && frame == _renderedFrame && _currentIcon is not null)
         {
             return;
         }
 
-        var replacement = TrayIconRenderer.Render(dog, state.Session?.UsedPercentage, _pet);
+        var replacement = TrayIconRenderer.Render(dog, state.Session?.UsedPercentage, _pet, frame);
         var previous = _currentIcon;
 
         _notifyIcon.Icon = replacement;
@@ -615,6 +631,7 @@ internal sealed class TrayIcon : IDisposable
         _renderedDog = dog;
         _renderedQuotaBucket = bucket;
         _renderedPet = _pet;
+        _renderedFrame = frame;
 
         // Only release the old icon after the tray has taken the new one.
         TrayIconRenderer.Release(previous);
@@ -995,6 +1012,8 @@ internal sealed class TrayIcon : IDisposable
         _store.Changed -= OnStateChanged;
         _poseTimer.Stop();
         _poseTimer.Dispose();
+        _wagTimer.Stop();
+        _wagTimer.Dispose();
         _waitingCard?.Dispose();
         _idleCard?.Dispose();
         _statusCard?.Dispose();
