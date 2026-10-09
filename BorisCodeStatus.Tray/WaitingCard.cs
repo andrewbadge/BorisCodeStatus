@@ -71,6 +71,15 @@ internal sealed class WaitingCard : Form
     private const int WS_EX_TOOLWINDOW = 0x00000080;
     private const int WS_EX_NOACTIVATE = 0x08000000;
 
+    private static readonly IntPtr HWND_TOPMOST = new(-1);
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOACTIVATE = 0x0010;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
+
     private readonly System.Windows.Forms.Timer _ticker = new() { Interval = 50 };
     private Font? _detailFont;
     private CardContent _content = CardContent.From(WaitingPrompt.From(null));
@@ -303,6 +312,12 @@ internal sealed class WaitingCard : Form
         {
             Show();
         }
+
+        // Topmost is a band, not a guarantee: any topmost window raised later — the taskbar,
+        // Task Manager, another always-on-top app — sits above this one, and the creation-time
+        // style never climbs back. A pinned card is refreshed here on every state write and pose
+        // tick, so re-asserting on each show keeps it on top. SWP_NOACTIVATE: still never takes focus.
+        SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
 
         // The ticker drives the countdown and the bang's blink; a pinned card has neither, and
         // would otherwise repaint 20 times a second for as long as it is up.
