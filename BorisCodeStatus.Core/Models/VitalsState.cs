@@ -53,7 +53,7 @@ public sealed record VitalsState
 
     /// <summary>
     /// Calendar-month spend derived locally from JSONL transcripts. Always null in v1 —
-    /// no Claude Code data source exposes a month figure. See README.
+    /// no Claude Code data source exposes a month figure. See docs/how-it-works.md.
     /// </summary>
     [JsonPropertyName("month_cost_usd")]
     public double? MonthCostUsd { get; init; }

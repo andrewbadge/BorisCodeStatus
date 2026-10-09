@@ -3,7 +3,7 @@
 What the app does, stated as behaviour: the inputs it reads, the state it keeps, what it shows and
 serves, every setting with its default, and the timings involved. It describes **v1.3.0**.
 
-The [README](../README.md) explains *why* things are the way they are — the security posture, the
+The [README](../README.md) and the pages it links to explain *why* things are the way they are — the security posture, the
 privacy promises, the release process. This document is the *what*; where the two meet, it links
 rather than repeats. If code and this document disagree, the code is right and this document is a
 bug.
@@ -42,7 +42,7 @@ it refuses to touch a file it cannot parse.
 
 The hook process:
 
-- reads only the fields listed in the README's *Privacy* section and discards the rest unread;
+- reads only the fields listed in [Privacy](privacy.md) and discards the rest unread;
 - does file I/O only, never network;
 - is killed by a 3-second watchdog;
 - **always exits 0**, including on malformed input or an unknown verb. An unexpected exception is
@@ -87,7 +87,7 @@ asleep without any new event arriving.
 ## 4. Outputs: HTTP endpoint
 
 **Off by default.** When on, it listens on `0.0.0.0`, port **5080**, overridable with the
-`BORISCODESTATUS_PORT` environment variable. It is unauthenticated (see README, *Security*).
+`BORISCODESTATUS_PORT` environment variable. It is unauthenticated (see [Security](status-endpoint.md#%EF%B8%8F-security-the-endpoint-is-unauthenticated)).
 
 | Route | Response |
 |---|---|
@@ -99,7 +99,7 @@ asleep without any new event arriving.
 `context_used_percentage`, `model_display_name`, `session_id`, `session_name`, `session_cost_usd`,
 `session_duration_ms`, `month_cost_usd` (always `null`; no source), `activity`,
 `activity_changed_utc`, `waiting_message`, `last_event_utc`, `session_ended_utc`,
-`session_status`, `last_updated_utc`, `usage_api_last_success_utc`, `age_seconds`. The README has
+`session_status`, `last_updated_utc`, `usage_api_last_success_utc`, `age_seconds`. [The `/status` endpoint](status-endpoint.md) has
 a sample payload.
 
 Adding a field changes the contract. Settings, the pet and the cards are tray-only and never
@@ -244,8 +244,7 @@ on. It reads the OAuth token from `~/.claude/.credentials.json` and calls
 - never more than once per 5 minutes;
 - after a rate-limit, it backs off for 30 minutes.
 
-Switching it off clears the fields it fetched. This is the app's only outbound call (README,
-*Privacy*).
+Switching it off clears the fields it fetched. This is the app's only outbound call ([Privacy](privacy.md)).
 
 ## 12. Limits
 

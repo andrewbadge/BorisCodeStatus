@@ -87,7 +87,7 @@ internal static class Program
 
         using var tray = new TrayIcon(store, options.Port, api);
 
-        // Registering hooks is done here rather than in an MSI custom action — see README. It runs
+        // Registering hooks is done here rather than in an MSI custom action — see docs/install.md. It runs
         // after the tray is up so a locked or unusual settings.json never delays or fails startup.
         EnsureHooksRegistered();
 

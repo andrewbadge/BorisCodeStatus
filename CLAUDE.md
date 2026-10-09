@@ -5,9 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A Windows user-mode tray app that relays Claude Code session/usage data over HTTP on the LAN so an
-ESP32 display can poll it. No service, no admin rights, no IPC. `README.md` is unusually thorough —
-read it before designing anything; it documents the security posture, the release process and the
-known limitations, and it is expected to stay current with each change.
+ESP32 display can poll it. No service, no admin rights, no IPC. The documentation is unusually thorough —
+`README.md` is the overview and quick start, and `docs/` holds the rest (`privacy.md`,
+`how-it-works.md`, `status-endpoint.md`, `install.md`, `tray.md`, `development.md`,
+`known-limitations.md`, `license.md`, `SPECS.md`). Read it before designing anything; it documents
+the security posture, the release process and the known limitations, and it is expected to stay
+current with each change.
 
 ## Commands
 
@@ -23,7 +26,7 @@ Requires the .NET 10 SDK and the WiX v4 CLI (`dotnet tool install --global wix -
 WiX is pinned to 4.0.5 deliberately — v7 requires accepting the Open Source Maintenance Fee EULA,
 which is a licensing decision, not a technical one.
 
-Exercising a hook by hand (see README for more verbs):
+Exercising a hook by hand (see `docs/development.md` for more verbs):
 
 ```bash
 echo '{"hook_event_name":"Notification"}' | BorisCodeStatus.Hooks.exe notification
@@ -66,8 +69,8 @@ is drawn at the tray's real small-icon size and fills it, with the ring behind. 
 **Core**, not the tray, because the ESP32 must derive the same pose from the same state.
 
 `VitalsState` **is** the `/status` contract — snake_case `JsonPropertyName` on every member, keyed
-off directly by ESP32 firmware. Adding a field changes the wire format; update the README payload
-sample in the same change.
+off directly by ESP32 firmware. Adding a field changes the wire format; update the payload
+sample in `docs/status-endpoint.md` in the same change.
 
 ## Conventions that carry real weight here
 
@@ -118,11 +121,11 @@ Match that register; the existing XML doc comments are the house style.
   and repair with **Settings → Advanced → Re-register hooks**.
 - `/status` is unauthenticated and bound to `0.0.0.0` by design in v1. Do not quietly widen what it
   exposes; it already serves session names and cost to anything on the LAN.
-- **The project is public and GPL-3.0-or-later**, and the README's *Privacy* section makes
+- **The project is public and GPL-3.0-or-later**, and `docs/privacy.md` makes
   specific promises: which hook fields are read, that the OAuth token goes only to
   `api.anthropic.com`, no telemetry. Any change to what is read, stored, served or sent must update
-  that section in the same change, or the README starts lying to users. A new bundled dependency
-  goes in its *Third-party components* table.
+  that page in the same change, or the docs start lying to users. A new bundled dependency
+  goes in the *Third-party components* table in `docs/license.md`.
 - `VitalsStateStore.JsonOptions` is `internal` and `BorisCodeStatus.Core` grants no `InternalsVisibleTo` —
   construct local `JsonSerializerOptions(JsonSerializerDefaults.Web)` in tests. (`BorisCodeStatus.Tray`
   *does* grant it, so its `internal` members are testable.)

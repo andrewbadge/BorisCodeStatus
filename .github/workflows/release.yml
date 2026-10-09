@@ -202,7 +202,7 @@ jobs:
             'administrator, use **Advanced > Fix firewall access** in the tray menu to get the exact command',
             'to send to whoever is.',
             '',
-            'See the README for the /status schema, and note that the endpoint is unauthenticated.',
+            'See docs/status-endpoint.md for the /status schema, and note that the endpoint is unauthenticated.',
             '',
             'Free software under the GNU GPL v3 or later; the source for this release is the tagged',
             'commit. An unofficial community project, not affiliated with Anthropic.'
