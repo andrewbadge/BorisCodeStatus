@@ -18,10 +18,10 @@ namespace BorisCodeStatus.Tray;
 /// HTTP start/stop off the UI thread, the balloon when a save fails — is unchanged. The tray calls
 /// <see cref="RefreshFromTray"/> on every refresh, so the tiles and switches stay live.
 ///
-/// Layout is in 96-DPI design pixels scaled to the monitor it opens on.
+/// Layout is in 96-DPI design pixels scaled to the monitor it opens on. It is built once, for
+/// that scale: moved to a monitor with another, the tray reopens it there rather than letting
+/// Windows resize the frame around controls still laid out for the old one.
 /// </summary>
-// ponytail: scaled once, for the DPI it opens at. Dragged to a monitor with a different scale it
-// keeps its original size; rebuild the controls in OnDpiChanged if that ever matters.
 internal sealed class SettingsWindow : Form
 {
     private const string RepositoryUrl = TrayIcon.RepositoryUrl;
@@ -47,6 +47,9 @@ internal sealed class SettingsWindow : Form
 
     private readonly TrayIcon _tray;
     private readonly float _scale;
+    private readonly int _builtDpi;
+    private int _page;
+    private bool _moving;
     private readonly Font _body;
     private readonly Font _small;
 
@@ -67,12 +70,20 @@ internal sealed class SettingsWindow : Form
     [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
     private static extern int SetWindowTheme(IntPtr window, string? subAppName, string? subIdList);
 
-    public SettingsWindow(TrayIcon tray)
+    /// <param name="at">Where to open, for a reopen at a new scale; null centres it.</param>
+    /// <param name="page">The page to show, so a reopen does not lose the user's place.</param>
+    public SettingsWindow(TrayIcon tray, Point? at = null, int page = 0)
     {
         _tray = tray;
 
         FormBorderStyle = FormBorderStyle.None;
-        StartPosition = FormStartPosition.CenterScreen;
+        StartPosition = at is null ? FormStartPosition.CenterScreen : FormStartPosition.Manual;
+        if (at is { } location)
+        {
+            // Before the handle, so it is created on that monitor and DeviceDpi is its.
+            Location = location;
+        }
+
         AutoScaleMode = AutoScaleMode.None;
         BackColor = Back;
         ShowInTaskbar = true;
@@ -83,10 +94,15 @@ internal sealed class SettingsWindow : Form
 
         // The handle first, so DeviceDpi is the monitor's rather than a guess.
         _ = Handle;
-        _scale = DeviceDpi / 96f;
+        _builtDpi = DeviceDpi;
+        _scale = _builtDpi / 96f;
         _body = WaitingCard.CreateDetailFont(L(13));
         _small = WaitingCard.CreateDetailFont(L(11));
         ClientSize = new Size(L(Width96), L(Height96));
+        if (at is not null)
+        {
+            Location = WaitingCard.KeepOnScreen(Bounds, Screen.GetWorkingArea(Bounds));
+        }
 
         SuspendLayout();
 
@@ -222,8 +238,45 @@ internal sealed class SettingsWindow : Form
 
         ResumeLayout();
 
-        ShowPage(0);
+        ShowPage(page);
         RefreshFromTray();
+    }
+
+    /// <summary>Raised when the window is now on a monitor whose scale it was not built for.</summary>
+    public event EventHandler? RebuildNeeded;
+
+    /// <summary>The page showing, for a reopen.</summary>
+    internal int Page => _page;
+
+    /// <summary>
+    /// Cancelled, so Windows does not shrink or grow the frame around controls that cannot follow.
+    /// Mid-drag the rebuild waits for the drop: the drag may yet end back on the original monitor,
+    /// and closing a window inside its own move loop is asking for trouble.
+    /// </summary>
+    protected override void OnDpiChanged(DpiChangedEventArgs e)
+    {
+        e.Cancel = true;
+        base.OnDpiChanged(e);
+        if (!_moving && e.DeviceDpiNew != _builtDpi)
+        {
+            BeginInvoke(() => RebuildNeeded?.Invoke(this, EventArgs.Empty));
+        }
+    }
+
+    protected override void OnResizeBegin(EventArgs e)
+    {
+        base.OnResizeBegin(e);
+        _moving = true;
+    }
+
+    protected override void OnResizeEnd(EventArgs e)
+    {
+        base.OnResizeEnd(e);
+        _moving = false;
+        if (DeviceDpi != _builtDpi)
+        {
+            BeginInvoke(() => RebuildNeeded?.Invoke(this, EventArgs.Empty));
+        }
     }
 
     private int L(float designPixels) => (int)Math.Round(designPixels * _scale);
@@ -273,6 +326,7 @@ internal sealed class SettingsWindow : Form
 
     private void ShowPage(int index)
     {
+        _page = index;
         for (var i = 0; i < _pages.Length; i++)
         {
             _pages[i].Visible = i == index;
