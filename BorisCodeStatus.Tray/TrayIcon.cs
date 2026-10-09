@@ -459,15 +459,37 @@ internal sealed class TrayIcon : IDisposable
         }
     }
 
-    /// <summary>Opens the settings window, or brings the open one forward — never a second copy.</summary>
-    private void ShowSettings()
+    /// <summary>
+    /// Opens the settings window, or brings the open one forward — never a second copy. With a
+    /// location and page it is a reopen: the window moved to a monitor at another scale.
+    /// </summary>
+    private void ShowSettings(Point? at = null, int page = 0)
     {
         if (_settings is null)
         {
-            _settings = new SettingsWindow(this);
+            var window = new SettingsWindow(this, at, page);
+            _settings = window;
+
             // Closing a modeless form disposes it; only the reference needs dropping.
-            _settings.FormClosed += (_, _) => _settings = null;
-            _settings.Show();
+            window.FormClosed += (_, _) =>
+            {
+                if (_settings == window)
+                {
+                    _settings = null;
+                }
+            };
+            window.RebuildNeeded += (_, _) =>
+            {
+                if (_settings != window)
+                {
+                    return;
+                }
+
+                var (location, page) = (window.Location, window.Page);
+                window.Close();
+                ShowSettings(location, page);
+            };
+            window.Show();
         }
 
         _settings.Activate();
