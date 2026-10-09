@@ -39,7 +39,7 @@ is doing — working, idle, or waiting for your permission — and how much of y
 left, and serves the same data over HTTP on your local network so a physical display (an
 ESP32-based CrowPanel, in the setup it was built for) can show it too.
 
-- A pixel-art dog — or cat, sentry bot or rubber duck — in the tray shows Claude's state; a ring behind it shows the
+- A pixel-art dog — or cat, sentry bot, rubber duck or goat — in the tray shows Claude's state; a ring behind it shows the
   five-hour quota used, green, then amber, then red.
 - A notification card (and, if you like, a bark, a purr, a chirp or a quack) when Claude is waiting on you, so a
   permission prompt is not missed.
@@ -55,7 +55,7 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
 <table>
 <tr>
 <td width="50%" valign="top"><img src="docs/images/waiting-card.png" alt="The waiting card with the dog: INPUT NEEDED, Claude is waiting for your input" width="354"><br><b>Waiting card.</b> Pops up when Claude needs you, quoting what it is asking for. A countdown bar, held while you hover; it vanishes once the prompt is answered. Never steals focus from the terminal.</td>
-<td width="50%" valign="top"><img src="docs/images/waiting-card-cat.png" alt="The waiting card with the sitting orange cat: PERMISSION NEEDED, Claude needs your permission to use Bash" width="354"><br><b>Pick a pet.</b> <i>Who keeps you company?</i> — pick the cat, a sentry bot or a rubber duck and it replaces Fido in the tray, on the waiting card and on the status card.</td>
+<td width="50%" valign="top"><img src="docs/images/waiting-card-cat.png" alt="The waiting card with the sitting orange cat: PERMISSION NEEDED, Claude needs your permission to use Bash" width="354"><br><b>Pick a pet.</b> <i>Who keeps you company?</i> — pick the cat, a sentry bot, a rubber duck or a goat and it replaces Fido in the tray, on the waiting card and on the status card.</td>
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/images/status-card-dog.png" alt="The status card with the dog: WAITING, 5h 6% used, reset time, week figure, model and settings, over a green gauge" width="354"><br><b>Status card.</b> Double-click the tray icon for the current state, the 5-hour and weekly figures, the model, and the session gauge in its quota colour.</td>
@@ -70,7 +70,7 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
 <td width="50%" valign="top"><img src="docs/images/settings-advanced.png" alt="The settings window's Advanced page: HTTP service and usage API switches, and Open, Re-register and Fix buttons" width="380"><br><b>Advanced.</b> The HTTP service, the usage-API fallback, and the repairs: open <code>/status</code>, re-register hooks, fix firewall access.</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/settings-notify-waiting.png" alt="The settings window's Notify page, When waiting section: Show a card and Play a sound both on, Meow chosen" width="380"><br><b>When waiting.</b> When Claude needs you — a permission prompt or a question — show a card, play a sound, or both. The dog pants or woofs; the cat purrs or meows; the bot chirps or clamps; the duck quacks or flies away. The card is on by default; the sound is off.</td>
+<td width="50%" valign="top"><img src="docs/images/settings-notify-waiting.png" alt="The settings window's Notify page, When waiting section: Show a card and Play a sound both on, Meow chosen" width="380"><br><b>When waiting.</b> When Claude needs you — a permission prompt or a question — show a card, play a sound, or both. The dog pants or woofs; the cat purrs or meows; the bot chirps or clamps; the duck quacks or flies away; the goat bleats or calls the herd. The card is on by default; the sound is off.</td>
 <td width="50%" valign="top"><img src="docs/images/settings-notify-idle.png" alt="The settings window's Notify page, When idle section: Show a card and Play a sound both on, Purr chosen" width="380"><br><b>When idle.</b> The same choices for when Claude finishes its turn: a <i>YOUR TURN</i> card, a sound, or both, with its own choice of sound. Off by default.</td>
 </tr>
 <tr>
@@ -501,9 +501,11 @@ destroys pixel art. At 125%/150% scaling the dog stays 16px with a margin.
 
 ### Pick a pet
 
-**Settings → Card → Who keeps you company?** swaps Fido for an orange cat, a sentry bot or a rubber
-duck everywhere the tray draws one: the tray icon, the waiting card (each has its own portrait in
-place of the dog's — the bot waves, the duck holds up a "!" sign) and the status card. The choice is
+**Settings → Card → Who keeps you company?** swaps Fido for an orange cat, a sentry bot, a rubber
+duck or a goat everywhere the tray draws one: the tray icon, the waiting card (each has its own portrait in
+place of the dog's — the bot waves, the duck holds up a "!" sign) and the status card. The goat is the one pet that moves: while Claude is working or waiting its mouth is open and its
+tongue wags, swinging between two frames every 250ms on the tray icon and on every card. Idle it
+closes its mouth and holds still, as it does asleep. The choice is
 stored by name in `pet.txt`; the dog is the default, so it is the file's absence. Versions before the
 bot and duck marked the cat with `cat-person.flag`, which is still read when `pet.txt` is missing so
 an upgrade keeps the cat. The bot's eye and antenna and the duck's badge show the pose; neither
@@ -643,10 +645,11 @@ both or neither works for each.
 - **The sounds follow the pet:** the dog **pants** by default and can **woof** instead; the cat
   **purrs** by default and can **meow** — chosen separately for each moment and each pet
   (`dog-woof.flag`, `cat-meow.flag`, `idle-dog-woof.flag`, `idle-cat-meow.flag`, and
-  `bot-alternate.flag`, `duck-alternate.flag` and their `idle-` twins), so switching pets keeps
-  every choice. Picking a sound, or switching one on, plays it. The bot **chirps** by default and
-  can **clamp**; the duck **quacks** by default and can **fly away** — the longest sound at 8 seconds,
-  cut short by the next sound to play.
+  `bot-alternate.flag`, `duck-alternate.flag`, `goat-alternate.flag` and their `idle-` twins), so
+  switching pets keeps every choice. Picking a sound, or switching one on, plays it. The bot
+  **chirps** by default and can **clamp**; the duck **quacks** by default and can **fly away** (8
+  seconds); the goat **bleats** by default and can call **the herd** — the longest sound at 10
+  seconds. A long sound is cut short by the next sound to play.
 - The recordings are by [freesound_community](https://pixabay.com/users/freesound_community-46691455/)
   on Pixabay, used under the [Pixabay Content License](https://pixabay.com/service/license-summary/)
   rather than this project's licence (see [Third-party components](#third-party-components)). They are 16-bit PCM

@@ -29,6 +29,7 @@ internal static class WaitingSound
         Pet.Cat => ("Purr", "Meow"),
         Pet.Bot => ("Chirp", "Clamp"),
         Pet.Duck => ("Quack", "Fly away"),
+        Pet.Goat => ("Bleat", "Herd"),
         _ => ("Panting", "Woof"),
     };
 

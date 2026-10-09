@@ -593,24 +593,280 @@ internal static class DogSprites
         "0000CCCCCCCCCC0000",
     ];
 
-    /// <summary>The tray sprite for a pose, as the chosen pet, with the palette it indexes.</summary>
-    public static (string[] Grid, Color[] Palette) Tray(DogState state, Pet pet) => pet switch
+    /// <summary>
+    /// The goat's palette. Unlike the other pets it was not sampled from the designer's sheets — there
+    /// are none — so the colours are chosen to sit with the cat's and duck's: the same outline weight
+    /// and the same four badge colours (index 9, A, B and C), so <see cref="TrayIcon.AccentFor"/> and the
+    /// card read the same whoever is in the tray.
+    /// </summary>
+    public static readonly Color[] GoatPalette =
+    [
+        Color.Transparent,                // 0
+        Color.FromArgb(0x3B, 0x2A, 0x1E), // 1 outline
+        Color.FromArgb(0xF4, 0xEF, 0xE6), // 2 white coat
+        Color.FromArgb(0xE8, 0xA0, 0xA0), // 3 inner ear pink
+        Color.FromArgb(0xD2, 0xB0, 0x72), // 4 horn
+        Color.FromArgb(0xFF, 0xFF, 0xFF), // 5 eye glint
+        Color.FromArgb(0x1A, 0x12, 0x09), // 6 eye
+        Color.FromArgb(0x7A, 0x1F, 0x2B), // 7 open mouth
+        Color.FromArgb(0xE5, 0x60, 0x7A), // 8 tongue
+        Color.FromArgb(0x4C, 0xC2, 0x6A), // 9 idle badge, green
+        Color.FromArgb(0x4F, 0xA8, 0xE6), // A working badge, blue
+        Color.FromArgb(0xFF, 0xD2, 0x3F), // B waiting badge, yellow
+        Color.FromArgb(0xC8, 0xC8, 0xD7), // C sleeping badge, lavender
+        Color.FromArgb(0xA0, 0xC8, 0xEB), // D (unused)
+        Color.FromArgb(0xBF, 0xB6, 0xA4), // E (unused)
+        Color.FromArgb(0x8A, 0x6A, 0x5A), // F nostril
+    ];
+
+    /// <summary>How long each tongue frame shows. 250ms is a four-beat-a-second wag: lively, not frantic.</summary>
+    public static readonly TimeSpan WagInterval = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>The goat's tongue frames: swung left, then swung right.</summary>
+    public const int WagFrames = 2;
+
+    /// <summary>
+    /// Which tongue frame shows at <paramref name="now"/>. A pure function of the instant, so every
+    /// surface — tray icon, waiting card, status card — wags in step, and a test can pin it.
+    /// </summary>
+    public static int WagFrame(DateTimeOffset now) => (int)(now.UtcTicks / WagInterval.Ticks % WagFrames);
+
+    /// <summary>
+    /// Whether this pet in this pose has more than one frame: only the goat, and only while Claude is
+    /// busy with it — working or waiting. Lets the tray skip redrawing a still pose four times a second.
+    /// </summary>
+    public static bool Wags(Pet pet, DogState state) => pet == Pet.Goat && state is DogState.Working or DogState.Waiting;
+
+    // The goat's mouth is open and its tongue wags while working or waiting. Each pose is two grids,
+    // indexed by WagFrame; they differ only in the tongue (and the beard, which swings to the other
+    // side), so the horns, face and badge hold still while the tongue moves.
+
+    /// <summary>
+    /// Idle, the goat closes its mouth — a line across the muzzle, the beard hanging straight — and
+    /// holds still: nothing is happening, so nothing moves. Two equal entries, as for sleeping.
+    /// </summary>
+    private static readonly string[] GoatIdleFace =
+    [
+        "0011000000001100",
+        "0014100000014100",
+        "0001410000141000",
+        "0000141001410000",
+        "0000112222110000",
+        "0111222222221110",
+        "1333252222523331",
+        "0111262222621110",
+        "0001222222221000",
+        "0000122FF2210000",
+        "0000122222210000",
+        "0000122112211111",
+        "0000011111119991",
+        "0000001221019991",
+        "0000000110019991",
+        "0000000000011111",
+    ];
+
+    private static readonly string[][] GoatIdle = [GoatIdleFace, GoatIdleFace];
+
+    private static readonly string[][] GoatWorking =
+    [
+        [
+            "0011000000001100",
+            "0014100000014100",
+            "0001410000141000",
+            "0000141001410000",
+            "0000112222110000",
+            "0111222222221110",
+            "1333252222523331",
+            "0111262222621110",
+            "0001222222221000",
+            "0000122FF2210000",
+            "0000177777710000",
+            "0000178877711111",
+            "000018811111AAA1",
+            "000188122101AAA1",
+            "000011011001AAA1",
+            "0000000000011111",
+        ],
+        [
+            "0011000000001100",
+            "0014100000014100",
+            "0001410000141000",
+            "0000141001410000",
+            "0000112222110000",
+            "0111222222221110",
+            "1333252222523331",
+            "0111262222621110",
+            "0001222222221000",
+            "0000122FF2210000",
+            "0000177777710000",
+            "0000177887711111",
+            "000011118811AAA1",
+            "000012211881AAA1",
+            "000001100111AAA1",
+            "0000000000011111",
+        ],
+    ];
+
+    private static readonly string[][] GoatWaiting =
+    [
+        [
+            "0011000000001100",
+            "0014100000014100",
+            "0001410000141000",
+            "0000141001410000",
+            "0000112222110000",
+            "0111222222221110",
+            "1333252222523331",
+            "0111262222621110",
+            "0001222222221000",
+            "0000122FF2210000",
+            "0000177777710000",
+            "0000178877711111",
+            "000018811111BBB1",
+            "000188122101BBB1",
+            "000011011001BBB1",
+            "0000000000011111",
+        ],
+        [
+            "0011000000001100",
+            "0014100000014100",
+            "0001410000141000",
+            "0000141001410000",
+            "0000112222110000",
+            "0111222222221110",
+            "1333252222523331",
+            "0111262222621110",
+            "0001222222221000",
+            "0000122FF2210000",
+            "0000177777710000",
+            "0000177887711111",
+            "000011118811BBB1",
+            "000012211881BBB1",
+            "000001100111BBB1",
+            "0000000000011111",
+        ],
+    ];
+
+    /// <summary>
+    /// Derived, like the cat's: the idle face with the glints gone so the eyes read as shut, the
+    /// lavender badge, and the tongue left hanging. Both entries are the same grid — a sleeping goat
+    /// does not wag, and keeping two entries lets <see cref="Tray"/> index every pose alike.
+    /// </summary>
+    private static readonly string[][] GoatSleeping =
+    [
+        [
+            "0011000000001100",
+            "0014100000014100",
+            "0001410000141000",
+            "0000141001410000",
+            "0000112222110000",
+            "0111222222221110",
+            "1333222222223331",
+            "0111262222621110",
+            "0001222222221000",
+            "0000122FF2210000",
+            "0000177777710000",
+            "0000178877711111",
+            "000018811111CCC1",
+            "000188122101CCC1",
+            "000011011001CCC1",
+            "0000000000011111",
+        ],
+        [
+            "0011000000001100",
+            "0014100000014100",
+            "0001410000141000",
+            "0000141001410000",
+            "0000112222110000",
+            "0111222222221110",
+            "1333222222223331",
+            "0111262222621110",
+            "0001222222221000",
+            "0000122FF2210000",
+            "0000177777710000",
+            "0000178877711111",
+            "000018811111CCC1",
+            "000188122101CCC1",
+            "000011011001CCC1",
+            "0000000000011111",
+        ],
+    ];
+
+    /// <summary>
+    /// The goat's head for the waiting card, 18×16, in its two wag frames: the tray sprite without its
+    /// badge (the card has its own header), padded by a column each side to the 18-wide footprint
+    /// the cat and bot portraits use, so the card centres it the same way. Drawn at five pixels a cell.
+    /// </summary>
+    public static readonly string[][] GoatPortrait =
+    [
+        [
+            "000110000000011000",
+            "000141000000141000",
+            "000014100001410000",
+            "000001410014100000",
+            "000001122221100000",
+            "001112222222211100",
+            "013332522225233310",
+            "001112622226211100",
+            "000012222222210000",
+            "00000122FF22100000",
+            "000001777777100000",
+            "000001788777100000",
+            "000001881111000000",
+            "000018812210000000",
+            "000001101100000000",
+            "000000000000000000",
+        ],
+        [
+            "000110000000011000",
+            "000141000000141000",
+            "000014100001410000",
+            "000001410014100000",
+            "000001122221100000",
+            "001112222222211100",
+            "013332522225233310",
+            "001112622226211100",
+            "000012222222210000",
+            "00000122FF22100000",
+            "000001777777100000",
+            "000001778877100000",
+            "000001111881000000",
+            "000001221188100000",
+            "000000110011000000",
+            "000000000000000000",
+        ],
+    ];
+
+    /// <summary>
+    /// The tray sprite for a pose, as the chosen pet, with the palette it indexes. <paramref name="frame"/>
+    /// is the goat's <see cref="WagFrame"/>; every other pet is a still image and ignores it.
+    /// </summary>
+    public static (string[] Grid, Color[] Palette) Tray(DogState state, Pet pet, int frame = 0) => pet switch
     {
         Pet.Cat => (Pick(state, CatIdle, CatWorking, CatWaiting, CatSleeping), CatPalette),
         Pet.Bot => (Pick(state, BotIdle, BotWorking, BotWaiting, BotSleeping), BotPalette),
         Pet.Duck => (Pick(state, DuckIdle, DuckWorking, DuckWaiting, DuckSleeping), DuckPalette),
+        Pet.Goat => GoatTray(state, frame),
         _ => (For(state), TrayPalette),
     };
 
+    private static (string[] Grid, Color[] Palette) GoatTray(DogState state, int frame)
+    {
+        var f = Math.Abs(frame % WagFrames);
+        return (Pick(state, GoatIdle[f], GoatWorking[f], GoatWaiting[f], GoatSleeping[f]), GoatPalette);
+    }
+
     /// <summary>
-    /// The large waiting-card portrait for the cat, bot or duck; null for the dog, whose portrait
-    /// blinks its bang and is drawn separately.
+    /// The large waiting-card portrait for the cat, bot, duck or goat; null for the dog, whose portrait
+    /// blinks its bang and is drawn separately. <paramref name="frame"/> is the goat's
+    /// <see cref="WagFrame"/>; the others are still.
     /// </summary>
-    public static (string[] Grid, Color[] Palette)? Portrait(Pet pet) => pet switch
+    public static (string[] Grid, Color[] Palette)? Portrait(Pet pet, int frame = 0) => pet switch
     {
         Pet.Cat => (CatPortrait, CatPalette),
         Pet.Bot => (BotPortrait, BotPalette),
         Pet.Duck => (DuckPortrait, DuckPalette),
+        Pet.Goat => (GoatPortrait[Math.Abs(frame % WagFrames)], GoatPalette),
         _ => null,
     };
 

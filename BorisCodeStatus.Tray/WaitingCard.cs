@@ -320,8 +320,9 @@ internal sealed class WaitingCard : Form
         SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
 
         // The ticker drives the countdown and the bang's blink; a pinned card has neither, and
-        // would otherwise repaint 20 times a second for as long as it is up.
-        if (_pinned)
+        // would otherwise repaint 20 times a second for as long as it is up. The goat's tongue is
+        // the exception: it keeps the ticker, and Tick repaints a pinned card only when the frame turns.
+        if (_pinned && Pet != Pet.Goat)
         {
             _ticker.Stop();
         }
@@ -445,8 +446,25 @@ internal sealed class WaitingCard : Form
             return;
         }
 
+        if (_pinned)
+        {
+            // Only the goat gets here (see ShowContent), and it needs a repaint only on a new frame.
+            var frame = WagFrame;
+            if (frame == _paintedWagFrame)
+            {
+                return;
+            }
+
+            _paintedWagFrame = frame;
+        }
+
         Invalidate();
     }
+
+    /// <summary>The goat's tongue frame right now; 0 for every pet that does not wag.</summary>
+    private int WagFrame => Pet == Pet.Goat ? DogSprites.WagFrame(DateTimeOffset.UtcNow) : 0;
+
+    private int _paintedWagFrame;
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -570,7 +588,7 @@ internal sealed class WaitingCard : Form
             return;
         }
 
-        if (DogSprites.Portrait(Pet) is var (portrait, portraitPalette))
+        if (DogSprites.Portrait(Pet, WagFrame) is var (portrait, portraitPalette))
         {
             // 18 wide at five design pixels is 90×100 for 20 rows, the dog portrait's footprint at
             // four. The duck's 23 rows are centred on that footprint rather than hung from its top.
@@ -639,7 +657,7 @@ internal sealed class WaitingCard : Form
     /// </summary>
     private void DrawTrayDog(Graphics graphics, DogState pose, int originX, int originY, int size)
     {
-        var (sprite, palette) = DogSprites.Tray(pose, Pet);
+        var (sprite, palette) = DogSprites.Tray(pose, Pet, WagFrame);
         DrawGrid(graphics, sprite, palette, originX, originY, size);
     }
 

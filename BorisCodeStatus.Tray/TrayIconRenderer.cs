@@ -29,7 +29,7 @@ internal static class TrayIconRenderer
     /// Renders an icon for the given state. The caller owns the returned <see cref="Icon"/> and must
     /// pass it to <see cref="Release"/> once the tray has stopped using it.
     /// </summary>
-    public static Icon Render(DogState dog, double? sessionUsedPercentage, Pet pet = Pet.Dog)
+    public static Icon Render(DogState dog, double? sessionUsedPercentage, Pet pet = Pet.Dog, int frame = 0)
     {
         // Drawn at the exact size the tray shows, so Windows never resamples it: a 32px canvas
         // shrunk into a 16px slot halved the dog and blurred it. The process is per-monitor
@@ -47,7 +47,7 @@ internal static class TrayIconRenderer
             DrawQuotaArc(graphics, size, sessionUsedPercentage);
         }
 
-        DrawDog(bitmap, dog, pet);
+        DrawDog(bitmap, dog, pet, frame);
 
         return CloneFromBitmap(bitmap);
     }
@@ -59,9 +59,9 @@ internal static class TrayIconRenderer
     /// </summary>
     // ponytail: integer scales of the 16px sprite only, so at 125%/150% (20/24px slots) the dog
     // stays 16px with a margin. Transcribe the design's distinct 24px sprites if that matters.
-    private static void DrawDog(Bitmap bitmap, DogState dog, Pet pet)
+    private static void DrawDog(Bitmap bitmap, DogState dog, Pet pet, int frame)
     {
-        var (sprite, palette) = DogSprites.Tray(dog, pet);
+        var (sprite, palette) = DogSprites.Tray(dog, pet, frame);
         var scale = Math.Max(1, bitmap.Width / DogSprites.Size);
         var origin = (bitmap.Width - DogSprites.Size * scale) / 2;
 
