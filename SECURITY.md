@@ -17,11 +17,11 @@ seriously and you will be credited in the advisory unless you prefer not to be.
 ## Known and by design
 
 These are documented trade-offs rather than vulnerabilities, though a report that shows one being
-worse than the README describes is still welcome:
+worse than the documentation describes is still welcome:
 
 - **`/status` is unauthenticated** and, when the HTTP service is switched on, serves session names,
   cost and usage percentages to anything on the LAN. The service is **off by default**. See
-  [Security: the endpoint is unauthenticated](README.md#%EF%B8%8F-security-the-endpoint-is-unauthenticated).
+  [Security: the endpoint is unauthenticated](docs/status-endpoint.md#%EF%B8%8F-security-the-endpoint-is-unauthenticated).
 - **The usage-API fallback reads the Claude Code OAuth token** to call `api.anthropic.com`. It is
   opt-in and off by default, and the token is sent nowhere else. See
-  [Privacy](README.md#privacy-what-it-reads-and-what-leaves-your-machine).
+  [Privacy](docs/privacy.md).

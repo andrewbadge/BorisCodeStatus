@@ -16,7 +16,7 @@ public sealed record VitalsApiOptions
     public int Port { get; init; } = 5080;
 
     /// <summary>
-    /// Bound to 0.0.0.0 so the ESP32 can reach it across the LAN. See the security note in the README:
+    /// Bound to 0.0.0.0 so the ESP32 can reach it across the LAN. See the security note in docs/status-endpoint.md:
     /// the endpoint is unauthenticated by design in v1.
     /// </summary>
     public string BindAddress { get; init; } = "0.0.0.0";

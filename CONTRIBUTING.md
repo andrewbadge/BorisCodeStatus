@@ -8,7 +8,7 @@ problems go through the [security policy](SECURITY.md), not a public issue.
 
 ## Before you change behaviour
 
-Read the [Design notes](README.md#design-notes) and the conventions in [`CLAUDE.md`](CLAUDE.md).
+Read the [Design notes](docs/development.md#design-notes) and the conventions in [`CLAUDE.md`](CLAUDE.md).
 Several of them exist because the alternative broke something:
 
 - **The hook process must be fast and must never fail.** File I/O only, never network, and it always
@@ -23,7 +23,7 @@ Several of them exist because the alternative broke something:
 ## Building and testing
 
 You need the .NET 10 SDK and the WiX v4 CLI. WiX is pinned to 4.0.5 on purpose — see the
-[Build](README.md#build) section before proposing an upgrade.
+[Build](docs/development.md) section before proposing an upgrade.
 
 ```bash
 dotnet tool install --global wix --version 4.0.5
@@ -41,11 +41,11 @@ so tests do not pass one day and fail the next.
 ## Pull requests
 
 - `dotnet test` must pass; CI runs it on every pull request into `main`.
-- **Keep the README current in the same pull request.** It documents behaviour, the `/status`
-  payload and the release process, and is expected to match the code.
-- **Update the README's [Privacy](README.md#privacy-what-it-reads-and-what-leaves-your-machine)
+- **Keep the README and `docs/` current in the same pull request.** They document behaviour, the `/status`
+  payload and the release process, and are expected to match the code.
+- **Update [Privacy](docs/privacy.md)
   section** if the change alters what is read, stored, served or sent. A new bundled dependency goes
-  in its *Third-party components* table.
+  in the [Third-party components](docs/license.md#third-party-components) table.
 - **Raise `<Version>` in `Directory.Build.props`** if the change ships anything, by semver: major for
   anything that breaks existing users or ESP32 firmware, minor for backward-compatible features,
   patch for fixes. Changes to docs, CI or tests alone need no bump. The Release workflow reads this

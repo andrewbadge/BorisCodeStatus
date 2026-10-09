@@ -89,7 +89,7 @@
     <!--
       Launch the tray app at the end of a successful install. This is what registers the hooks in
       ~/.claude/settings.json: the merge lives in the app's startup path, not in an MSI custom
-      action. See the README for why.
+      action. See docs/install.md for why.
     -->
     <!-- Addressed by path rather than by [#FileId]: the file ids in ApplicationFiles are generated
          by heat and are not stable to depend on from hand-written authoring. Set via SetProperty
