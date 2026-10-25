@@ -127,7 +127,7 @@ Match that register; the existing XML doc comments are the house style.
   exposes; it already serves session names and cost to anything on the LAN.
 - **The project is public and GPL-3.0-or-later**, and `docs/privacy.md` makes
   specific promises: which hook fields are read, that the OAuth token goes only to
-  `api.anthropic.com`, no telemetry. Any change to what is read, stored, served or sent must update
+  `api.anthropic.com`, the opt-in update check goes only to `api.github.com` and sends nothing about the install, no telemetry. Any change to what is read, stored, served or sent must update
   that page in the same change, or the docs start lying to users. A new bundled dependency
   goes in the *Third-party components* table in `docs/license.md`.
 - `VitalsStateStore.JsonOptions` is `internal` and `BorisCodeStatus.Core` grants no `InternalsVisibleTo` —
