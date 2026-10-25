@@ -249,7 +249,7 @@ on. It reads the OAuth token from `~/.claude/.credentials.json` and calls
 - never more than once per 5 minutes;
 - after a rate-limit, it backs off for 30 minutes.
 
-Switching it off clears the fields it fetched. This is the app's only outbound call ([Privacy](privacy.md)).
+Switching it off clears the fields it fetched. This is one of the app's two opt-in outbound calls, the other being the update check ([Privacy](privacy.md)).
 
 ## 12. Limits
 
