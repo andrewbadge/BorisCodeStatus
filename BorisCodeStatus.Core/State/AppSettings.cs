@@ -71,6 +71,14 @@ public sealed record AppSettings
     [JsonPropertyName("status_card_position")]
     public CardPosition? StatusCardPosition { get; init; }
 
+    /// <summary>Whether the tray may ask GitHub for the latest release. See <see cref="UpdateCheckPreference"/>.</summary>
+    [JsonPropertyName("update_check_enabled")]
+    public bool UpdateCheckEnabled { get; init; }
+
+    /// <summary>The newest release already announced, so a restart does not announce it again.</summary>
+    [JsonPropertyName("update_notified_version")]
+    public string? UpdateNotifiedVersion { get; init; }
+
     /// <summary>The 5-hour usage, in percent, past which the warning card shows. See <see cref="SessionWarningPreference"/>.</summary>
     [JsonPropertyName("session_warning_percent")]
     public int SessionWarningPercent { get; init; } = SessionWarningPreference.Default;

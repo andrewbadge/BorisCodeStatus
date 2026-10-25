@@ -53,9 +53,10 @@ internal sealed class SettingsWindow : Form
     private readonly Font _body;
     private readonly Font _small;
 
-    private readonly Panel[] _pages = new Panel[4];
-    private readonly NavItem[] _nav = new NavItem[4];
+    private readonly Panel[] _pages = new Panel[5];
+    private readonly NavItem[] _nav = new NavItem[5];
     private readonly Slider _warnAt;
+    private readonly Toggle _updateCheck;
 
     private readonly Toggle _pinned;
     private readonly Toggle _mini;
@@ -120,7 +121,7 @@ internal sealed class SettingsWindow : Form
         Controls.Add(close);
 
         // Nav and pages.
-        string[] names = ["Notify", "Card", "Usage", "Advanced"];
+        string[] names = ["Notify", "Card", "Usage", "Advanced", "About"];
         for (var i = 0; i < names.Length; i++)
         {
             var index = i;
@@ -257,6 +258,31 @@ internal sealed class SettingsWindow : Form
         _fix.Click += (_, _) => _tray.FixFirewallAccess();
         _fixNote = Row(actionGroup, 2, "Fix firewall access", _fix, note: "Turn on the HTTP service to use this.");
 
+        // About.
+        var aboutPage = _pages[4];
+        Heading(aboutPage, "About", 24);
+        aboutPage.Controls.Add(new Label
+        {
+            Text = $"BorisCodeStatus v{TrayIcon.Version}",
+            Font = _body,
+            ForeColor = Ink,
+            BackColor = Back,
+            AutoSize = true,
+            Location = P(Margin96, 64),
+        });
+
+        var updateGroup = Group(aboutPage, 100, rows: 2);
+        _updateCheck = new Toggle();
+        _updateCheck.Click += (_, _) =>
+        {
+            _tray.ToggleUpdateCheck();
+            RefreshFromTray();
+        };
+        Row(updateGroup, 0, "Check for updates", _updateCheck, note: "Asks GitHub every 6 hours. Off by default.");
+        var releases = new PixelButton("Open");
+        releases.Click += (_, _) => _tray.OpenReleases();
+        Row(updateGroup, 1, "Releases page", releases);
+
         // Footer. Exit is on the tray menu, not here.
         var done = new PixelButton("Close", filled: true) { Bounds = R(Width96 - Margin96 - 112, FooterTop + 16, 112, 40) };
         done.Click += (_, _) => Close();
@@ -320,6 +346,7 @@ internal sealed class SettingsWindow : Form
         _http.Enabled = !_tray.HttpBusy;
         _usageApi.On = _tray.UsageApiOn;
         _warnAt.SetValue(_tray.SessionWarnAt);
+        _updateCheck.On = _tray.UpdateCheckOn;
 
         // Greyed out while the service is off: with nothing listening there is nothing for a
         // rule to let through, and adding one would open the firewall for no reason.

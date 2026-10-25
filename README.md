@@ -44,6 +44,8 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
 - A notification card (and, if you like, a bark, a purr, a chirp or a quack) when Claude is waiting on you, so a
   permission prompt is not missed.
 - A status card you can pin on screen, full size or mini.
+- A warning card when your 5-hour usage passes a threshold you set (80% by default), until you dismiss it.
+- An optional update check against GitHub releases, **off by default**.
 - `GET /status` on port 5080 returns the whole picture as JSON for any device on the LAN — once you
   switch it on. The HTTP service is **off by default**.
 
@@ -63,7 +65,7 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/images/mini-card-dog.png" alt="The mini status card with the dog: WAITING, 5H 6%, and a gauge" width="236"><br><img src="docs/images/mini-card-cat.png" alt="The mini status card with the cat" width="236"><br><b>Mini status card.</b> A strip a fifth the height: pose, state, the 5-hour figure and the gauge. Every card has a faint close button that brightens on hover.</td>
-<td width="50%" valign="top"><img src="docs/images/settings.png" alt="The settings window on its Card page, with the dog chosen" width="380"><br><b>Settings window.</b> Right-click the icon → <i>Settings…</i>. Live status, session and week tiles over the Notify, Card and Advanced pages.</td>
+<td width="50%" valign="top"><img src="docs/images/settings.png" alt="The settings window on its Card page, with the dog chosen" width="380"><br><b>Settings window.</b> Right-click the icon → <i>Settings…</i>. Live status, session and week tiles over the Notify, Card, Usage, Advanced and About pages.</td>
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/images/settings-notify.png" alt="The settings window's Notify page, listing open apps to bring to the front, with Windows Terminal Host chosen" width="380"><br><b>Jump to your terminal.</b> Choose an app — your terminal, a browser, anything open — and clicking the waiting card, double-clicking the icon or double-clicking the pinned card brings it to the front. Off by default.</td>
@@ -115,7 +117,7 @@ make an HTTP `GET` and parse JSON can consume `/status`.
 
 | Page | What it covers |
 |---|---|
-| [Privacy](docs/privacy.md) | What the app reads, what it stores and serves, and the one outbound call it can make |
+| [Privacy](docs/privacy.md) | What the app reads, what it stores and serves, and the two outbound calls it can make, both opt-in |
 | [How it works](docs/how-it-works.md) | The hook and tray processes, the data sources behind each figure, and projects |
 | [The `/status` endpoint](docs/status-endpoint.md) | The JSON payload, field by field, and why the endpoint is unauthenticated |
 | [Install](docs/install.md) | The per-user MSI, Windows Firewall, and how the hooks are registered |
