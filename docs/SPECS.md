@@ -214,6 +214,7 @@ and kept in step by its control.
 | `idle-sound.flag` | Idle sound on | Off |
 | `idle-dog-woof.flag` / `idle-cat-meow.flag` | Idle sound is woof / meow | Panting / purr |
 | `card-click-app.txt` | Holds the process name to bring forward | Just dismiss |
+| `session-warning.txt` | Holds the session-usage warning threshold, 50–100 | 80 |
 | `status-card-pinned.flag` | Status card pinned | Snapshot on double-click |
 | `status-card-mini.flag` | Mini status card | Full card |
 | `status-card-position.txt` | `x,y` of the pinned card, in screen pixels | Bottom-right of the primary working area |

@@ -75,9 +75,10 @@ instantly; everything else is in the settings window.
 **The settings window** repeats the version header and adds three tiles: **Status** (the dog's pose in its badge colour, plus whether
 HTTP and notifications are on, since neither is visible anywhere else), **Session · 5h** and
 **Week · 7d**, each with its figure, a twenty-segment gauge in the ring's colours and the reset time.
-They update live while the window is open. Below, three pages: **Notify** — for *When waiting* and *When idle*, a card, a sound and which sound,
+They update live while the window is open. Below, four pages: **Notify** — for *When waiting* and *When idle*, a card, a sound and which sound,
 and the app a click on a card brings forward; **Card** — *Keep status card on screen*
-and *Mini status card*, and *Who keeps you company?*; **Advanced** — *Enable HTTP service*, *Use usage API for Sonnet quota*, and
+and *Mini status card*, and *Who keeps you company?*; **Usage** — a slider for the session warning
+(see below); **Advanced** — *Enable HTTP service*, *Use usage API for Sonnet quota*, and
 the repairs: **Open in browser** (opens `/status`), **Re-register hooks** and **Fix firewall
 access…**, greyed out while the HTTP service is off. **Close** sits at the bottom;
 Esc closes too, and the strip above the tiles drags the window.
@@ -105,6 +106,13 @@ Every card has a faint **×** in its top-right corner that brightens under the p
 closes the card — on the waiting card it does not bring the chosen app forward — and on a pinned
 status card it also unticks **Keep status card on screen**, since otherwise the next refresh would
 bring it straight back.
+
+### Session usage warning
+
+When the 5-hour session passes a threshold, a persistent card shows how much is used and when the
+session resets, and stays until you press **Dismiss** (or **Usage**, which opens claude.ai/settings/usage in your browser). Set the threshold with the slider under **Settings → Usage** (50–100%, default 80%;
+100% never warns). It shows **once per session**: it is re-armed when usage is back at or below the
+threshold, which is what a session reset does. The threshold is kept in `session-warning.txt`.
 
 ### Notification when Claude is waiting for you
 

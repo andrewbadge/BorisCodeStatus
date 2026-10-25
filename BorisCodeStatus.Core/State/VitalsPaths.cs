@@ -40,6 +40,12 @@ public static class VitalsPaths
     public static string ClickTargetFile => Path.Combine(DataDirectory, "card-click-app.txt");
 
     /// <summary>
+    /// Holds the session-usage percentage that triggers the warning dialog. Absent by default,
+    /// meaning 80. See <see cref="SessionWarningPreference"/>.
+    /// </summary>
+    public static string SessionWarningFile => Path.Combine(DataDirectory, "session-warning.txt");
+
+    /// <summary>
     /// Present when the status card is pinned on screen. Marks the non-default setting, since the
     /// card only appears on a double-click out of the box.
     /// </summary>

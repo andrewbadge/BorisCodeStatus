@@ -19,6 +19,8 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>Where the menu header points: the public source repository.</summary>
     internal const string RepositoryUrl = "https://github.com/andrewbadge/BorisCodeStatus";
 
+    private const string UsageUrl = "https://claude.ai/settings/usage";
+
     private readonly NotifyIcon _notifyIcon;
     private readonly VitalsStateStore _store;
     private readonly VitalsApiHost _api;
@@ -72,9 +74,18 @@ internal sealed class TrayIcon : IDisposable
     private WaitingCard? _waitingCard;
     private WaitingCard? _statusCard;
     private WaitingCard? _idleCard;
+    private WaitingCard? _usageCard;
 
     /// <summary>When the turn we last announced ended; the idle counterpart of <see cref="_lastNotifiedWaitAt"/>.</summary>
     private DateTimeOffset? _lastNotifiedIdleAt;
+
+    private int _sessionWarnAt;
+
+    /// <summary>
+    /// True once the warning has been shown for the current spell above the threshold. Cleared when
+    /// usage is back at or below it — which is what a session reset does — so it fires once per session.
+    /// </summary>
+    private bool _sessionWarned;
 
     private bool _disposed;
 
@@ -96,6 +107,7 @@ internal sealed class TrayIcon : IDisposable
         _waitingSoundOn = SoundPreference.IsEnabled(NotifyMoment.Waiting);
         _idleCardOn = NotificationPreference.IdleCardEnabled();
         _idleSoundOn = SoundPreference.IsEnabled(NotifyMoment.Idle);
+        _sessionWarnAt = SessionWarningPreference.Get();
 
         // A session already idle when the tray starts — at login, say — finished its turn before we
         // were here to see it. Without this baseline every start would announce it.
@@ -221,6 +233,71 @@ internal sealed class TrayIcon : IDisposable
 
         NotifyIfWaitingForInput(state);
         NotifyIfIdle(state);
+        WarnIfSessionUsageHigh(state);
+    }
+
+    /// <summary>
+    /// Shows a dialog the first time session usage passes the threshold. Like the other
+    /// notifications this runs on every refresh, so it is gated by <see cref="_sessionWarned"/>
+    /// rather than by "usage is currently high".
+    /// </summary>
+    private void WarnIfSessionUsageHigh(VitalsState state)
+    {
+        if (state.Session?.UsedPercentage is not { } used || used <= _sessionWarnAt)
+        {
+            _sessionWarned = false;
+            return;
+        }
+
+        if (_sessionWarned)
+        {
+            return;
+        }
+
+        _sessionWarned = true;
+
+        var detail = $"Past your {_sessionWarnAt}% warning.";
+        if (state.Session.ResetsInMinutes is { } minutes)
+        {
+            detail += $"\nResets in {FormatDuration(minutes)}.";
+        }
+
+        // Its own instance, and persistent: it stays until clicked, and the other cards' dismissals
+        // cannot take it down.
+        if (_usageCard is null)
+        {
+            // Unverified: claude.ai's usage page is not documented; this is where Settings → Usage lives.
+            _usageCard = new WaitingCard { Persistent = true, LinkText = "Usage" };
+            _usageCard.LinkClicked += (_, _) => OpenUrl(UsageUrl);
+        }
+
+        _usageCard.Pet = _pet;
+        _usageCard.ShowContent(new CardContent(
+            "Warning",
+            TrayIconRenderer.QuotaColorFor(used),
+            $"5h {used.ToString("0", CultureInfo.CurrentCulture)}% used",
+            detail,
+            Hint: "5H",
+            Dog: DogState.Waiting,
+            Gauge: used));
+    }
+
+    internal int SessionWarnAt => _sessionWarnAt;
+
+    internal void SetSessionWarnAt(int percent)
+    {
+        if (percent == _sessionWarnAt)
+        {
+            return;
+        }
+
+        _sessionWarnAt = percent;
+        if (!SessionWarningPreference.TrySet(percent))
+        {
+            ShowBalloon("That preference could not be saved, so it will not survive a restart.", ToolTipIcon.Warning);
+        }
+
+        Refresh(_store.Current);
     }
 
     /// <summary>
@@ -1016,6 +1093,7 @@ internal sealed class TrayIcon : IDisposable
         _wagTimer.Dispose();
         _waitingCard?.Dispose();
         _idleCard?.Dispose();
+        _usageCard?.Dispose();
         _statusCard?.Dispose();
         _settings?.Dispose();
         _waitingCard = null;
