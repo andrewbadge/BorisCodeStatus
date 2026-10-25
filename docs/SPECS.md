@@ -193,8 +193,10 @@ change.
   the figure, a 20-segment gauge in the ring's colours, and the reset time.
 - **Notify**: *When waiting*, *When idle* (§7), *When notification is clicked*.
 - **Card**: *Keep status card on screen*, *Mini status card*, *Who keeps you company?* (dog, cat, sentry bot, rubber duck, goat)
+- **Usage**: the session warning slider (§7).
 - **Advanced**: *Enable HTTP service*; *Use usage API for Sonnet quota*; **Open in browser**
   (`/status`); **Re-register hooks**; **Fix firewall access…** (disabled while HTTP is off).
+- **About**: the version, *Check for updates* (§9) and an **Open** button for the releases page.
 
 ## 9. Preferences
 
@@ -218,6 +220,8 @@ written until the user first changes a setting. A file that will not parse is co
 | `status_card_pinned` / `status_card_mini` | Status card pinned / mini | `false` |
 | `status_card_position` | `{ "x", "y" }` of the pinned card, in screen pixels | `null` (bottom-right of the primary working area) |
 | `pet` | `Dog`, `Cat`, `Bot`, `Duck` or `Goat` | `Dog` |
+| `update_check_enabled` | Ask GitHub every 6 hours for a newer release | `false` |
+| `update_notified_version` | Newest release already announced, so it is announced once | `null` |
 
 Versions before 1.7 kept each preference in a file of its own (`http-enabled.flag`,
 `pet.txt`, …). The first start of 1.7 imports them into `settings.json` and deletes them.

@@ -73,12 +73,13 @@ instantly; everything else is in the settings window.
 **The settings window** repeats the version header and adds three tiles: **Status** (the dog's pose in its badge colour, plus whether
 HTTP and notifications are on, since neither is visible anywhere else), **Session · 5h** and
 **Week · 7d**, each with its figure, a twenty-segment gauge in the ring's colours and the reset time.
-They update live while the window is open. Below, four pages: **Notify** — for *When waiting* and *When idle*, a card, a sound and which sound,
+They update live while the window is open. Below, five pages: **Notify** — for *When waiting* and *When idle*, a card, a sound and which sound,
 and the app a click on a card brings forward; **Card** — *Keep status card on screen*
 and *Mini status card*, and *Who keeps you company?*; **Usage** — a slider for the session warning
 (see below); **Advanced** — *Enable HTTP service*, *Use usage API for Sonnet quota*, and
 the repairs: **Open in browser** (opens `/status`), **Re-register hooks** and **Fix firewall
-access…**, greyed out while the HTTP service is off. **Close** sits at the bottom;
+access…**, greyed out while the HTTP service is off; **About** — the version and *Check for updates*
+(see below). **Close** sits at the bottom;
 Esc closes too, and the strip above the tiles drags the window.
 **Double-clicking the icon** brings the app chosen under **When notification is clicked** to the
 front, if one is chosen; otherwise it **shows the status card** — the same display card as the waiting
@@ -104,6 +105,16 @@ Every card has a faint **×** in its top-right corner that brightens under the p
 closes the card — on the waiting card it does not bring the chosen app forward — and on a pinned
 status card it also unticks **Keep status card on screen**, since otherwise the next refresh would
 bring it straight back.
+
+### Update check (off by default)
+
+**Settings → About → Check for updates** makes the tray ask GitHub, once at start and then every 6 hours,
+whether a newer release than the one running exists. If there is, a card says so, with a **Releases**
+button that opens the releases page and a **Dismiss** button; like the usage warning it stays until
+dismissed. It announces each release once, not at every login. Switching it on checks at once. It
+is the only network call besides the opt-in usage API: an anonymous request to `api.github.com` that
+sends no token and nothing about your install (see [privacy](privacy.md)). It never downloads or
+installs anything. The setting is `update_check_enabled`.
 
 ### Session usage warning
 

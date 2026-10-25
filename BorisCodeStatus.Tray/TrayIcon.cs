@@ -79,6 +79,16 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>When the turn we last announced ended; the idle counterpart of <see cref="_lastNotifiedWaitAt"/>.</summary>
     private DateTimeOffset? _lastNotifiedIdleAt;
 
+    private bool _updateCheckOn;
+    private bool _checkingForUpdate;
+    private WaitingCard? _updateCard;
+
+    /// <summary>How often the opt-in update check runs while it is switched on.</summary>
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
+
+    private static readonly HttpClient UpdateHttp = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private readonly System.Windows.Forms.Timer _updateTimer;
+
     private int _sessionWarnAt;
 
     /// <summary>
@@ -108,6 +118,7 @@ internal sealed class TrayIcon : IDisposable
         _idleCardOn = NotificationPreference.IdleCardEnabled();
         _idleSoundOn = SoundPreference.IsEnabled(NotifyMoment.Idle);
         _sessionWarnAt = SessionWarningPreference.Get();
+        _updateCheckOn = UpdateCheckPreference.IsEnabled();
 
         // A session already idle when the tray starts — at login, say — finished its turn before we
         // were here to see it. Without this baseline every start would announce it.
@@ -159,6 +170,12 @@ internal sealed class TrayIcon : IDisposable
         // raises notifications and redraws cards, which must fire on a transition, not on a timer.
         _wagTimer = new System.Windows.Forms.Timer { Interval = (int)DogSprites.WagInterval.TotalMilliseconds, Enabled = _pet == Pet.Goat };
         _wagTimer.Tick += (_, _) => UpdateIcon(_store.Current);
+
+        // Always running, but the handler does nothing unless the check is switched on, so
+        // enabling it later needs no restart and disabling it leaves nothing to tear down.
+        _updateTimer = new System.Windows.Forms.Timer { Interval = (int)UpdateCheckInterval.TotalMilliseconds, Enabled = true };
+        _updateTimer.Tick += (_, _) => CheckForUpdate();
+        CheckForUpdate();
 
         _store.Changed += OnStateChanged;
         _store.StartWatching();
@@ -281,6 +298,81 @@ internal sealed class TrayIcon : IDisposable
             Dog: DogState.Waiting,
             Gauge: used));
     }
+
+    /// <summary>
+    /// Asks GitHub for the latest release and, if it is newer than this one and not yet announced,
+    /// shows the update card. Does nothing unless the user has switched the check on; one request
+    /// at a time. A failed request is silent — the next tick tries again.
+    /// </summary>
+    private async void CheckForUpdate()
+    {
+        if (!_updateCheckOn || _checkingForUpdate)
+        {
+            return;
+        }
+
+        _checkingForUpdate = true;
+        try
+        {
+            var latest = await UpdateChecker.GetLatestAsync(UpdateHttp);
+
+            // Back on the UI thread. The user may have switched the check off, or quit, meanwhile.
+            if (_disposed || !_updateCheckOn || latest is null || !UpdateChecker.IsNewer(latest, Version))
+            {
+                return;
+            }
+
+            var announced = latest.ToString(3);
+            if (UpdateCheckPreference.NotifiedVersion() == announced)
+            {
+                return;
+            }
+
+            // Recorded first: if it cannot be saved the card still shows, at worst again next start.
+            UpdateCheckPreference.TrySetNotifiedVersion(announced);
+            ShowUpdateCard(announced);
+        }
+        finally
+        {
+            _checkingForUpdate = false;
+        }
+    }
+
+    /// <summary>Persistent like the usage warning: an update is easy to dismiss unread if it fades.</summary>
+    private void ShowUpdateCard(string version)
+    {
+        if (_updateCard is null)
+        {
+            _updateCard = new WaitingCard { Persistent = true, LinkText = "Releases" };
+            _updateCard.LinkClicked += (_, _) => OpenUrl(UpdateChecker.ReleasesPageUrl);
+        }
+
+        _updateCard.Pet = _pet;
+        _updateCard.ShowContent(new CardContent(
+            "Update",
+            AccentFor(DogState.Working),
+            $"v{version} is out",
+            $"You are running v{Version}. The new release is on GitHub.",
+            Hint: null,
+            Dog: DogState.Idle,
+            Gauge: 0));
+    }
+
+    internal bool UpdateCheckOn => _updateCheckOn;
+
+    /// <summary>Switches the check on or off. Switching on checks at once, so the choice is confirmed by the result.</summary>
+    internal void ToggleUpdateCheck()
+    {
+        _updateCheckOn = !_updateCheckOn;
+        if (!UpdateCheckPreference.TrySetEnabled(_updateCheckOn))
+        {
+            ShowBalloon("That preference could not be saved, so it will not survive a restart.", ToolTipIcon.Warning);
+        }
+
+        CheckForUpdate();
+    }
+
+    internal void OpenReleases() => OpenUrl(UpdateChecker.ReleasesPageUrl);
 
     internal int SessionWarnAt => _sessionWarnAt;
 
@@ -1094,6 +1186,8 @@ internal sealed class TrayIcon : IDisposable
         _waitingCard?.Dispose();
         _idleCard?.Dispose();
         _usageCard?.Dispose();
+        _updateCard?.Dispose();
+        _updateTimer.Dispose();
         _statusCard?.Dispose();
         _settings?.Dispose();
         _waitingCard = null;
