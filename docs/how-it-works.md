@@ -86,8 +86,8 @@ Sonnet-only weekly split (`week_sonnet`).
 **It is off by default.** Tick **Settings → Advanced → Use usage API for Sonnet quota** to allow it. It is the
 only part of the app that reads the OAuth token or talks to the network, for a figure most displays
 do not show, from an endpoint that is not a contract — so it should be chosen, not assumed. The
-preference is a marker file, `%LOCALAPPDATA%\BorisCodeStatus\usage-api-enabled.flag`, marking the
-non-default *enabled* setting like every tray preference.
+preference is `usage_api_enabled` in `%LOCALAPPDATA%\BorisCodeStatus\settings.json`, which holds every tray
+preference and defaults to off.
 
 While it is off, `/status` serves `week_sonnet` and `usage_api_last_success_utc` as `null`, and
 switching it off also clears any values already fetched from `state.json`. The poller and the

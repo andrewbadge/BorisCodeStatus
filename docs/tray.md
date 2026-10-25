@@ -31,9 +31,7 @@ duck or a goat everywhere the tray draws one: the tray icon, the waiting card (e
 place of the dog's — the bot waves, the duck holds up a "!" sign) and the status card. The goat is the one pet that moves: while Claude is working or waiting its mouth is open and its
 tongue wags, swinging between two frames every 250ms on the tray icon and on every card. Idle it
 closes its mouth and holds still, as it does asleep. The choice is
-stored by name in `pet.txt`; the dog is the default, so it is the file's absence. Versions before the
-bot and duck marked the cat with `cat-person.flag`, which is still read when `pet.txt` is missing so
-an upgrade keeps the cat. The bot's eye and antenna and the duck's badge show the pose; neither
+stored by name as `pet` in `settings.json`, and the dog is the default. The bot's eye and antenna and the duck's badge show the pose; neither
 design has a sleeping pose, so each sleeps as its idle face with the eye off or shut. The cat's
 sprites live in `DogSprites.cs` beside the dog's, on their own palette, transcribed from the
 design's sheets the same way. Two notes: the cat's idle face carries a green badge where the
@@ -89,15 +87,15 @@ model and both settings, over a bar that is the session gauge in its green/amber
 snapshot, hides itself after 12 seconds (or on a click), and needs no HTTP service. `/status` is
 still under **Settings → Advanced → Open in browser**.
 
-**Settings → Card → Keep status card on screen** (off by default, `status-card-pinned.flag`) pins it
+**Settings → Card → Keep status card on screen** (off by default, `status_card_pinned`) pins it
 instead: it stays up, always on top, and updates live with every state change. Drag it anywhere —
 the whole card is the handle, and it still never takes focus from the terminal. Double-click it to bring the
 chosen app to the front. Where you leave it
-is saved to `status-card-position.txt` and restored at the next start, pulled fully back onto the
+is saved as `status_card_position` and restored at the next start, pulled fully back onto the
 nearest monitor's working area if that spot is no longer on screen — a monitor unplugged, the
 layout rearranged, the resolution lowered. Untick the setting to put it away.
 
-**Settings → Card → Mini status card** (off by default, `status-card-mini.flag`) shrinks it to a strip
+**Settings → Card → Mini status card** (off by default, `status_card_mini`) shrinks it to a strip
 two-thirds the width and a fifth the height: the dog in its current pose, the state, the 5-hour
 figure and the gauge, without the detail lines. It applies to both the double-click snapshot and
 the pinned card, and switching it while the card is up redraws it in place.
@@ -112,7 +110,7 @@ bring it straight back.
 When the 5-hour session passes a threshold, a persistent card shows how much is used and when the
 session resets, and stays until you press **Dismiss** (or **Usage**, which opens claude.ai/settings/usage in your browser). Set the threshold with the slider under **Settings → Usage** (50–100%, default 80%;
 100% never warns). It shows **once per session**: it is re-armed when usage is back at or below the
-threshold, which is what a session reset does. The threshold is kept in `session-warning.txt`.
+threshold, which is what a session reset does. The threshold is kept as `session_warning_percent`.
 
 ### Notification when Claude is waiting for you
 
@@ -133,7 +131,7 @@ layout belongs to Windows, so none of that is possible there. Details worth know
   **Settings → Notify → When notification is clicked** can also make the click bring an app to the front —
   your terminal, a browser, anything with a window open. It is **off by default** (*Just
   dismiss*). The page lists the apps open at that moment; the choice is stored as a process
-  name in `card-click-app.txt`, so it still works after the app restarts. With several windows of
+  name as `click_target_app`, so it still works after the app restarts. With several windows of
   that app open, the one whose title looks like Claude Code's — a status glyph and a space before
   the topic, such as `✳ Fix the login bug` — comes forward, so Visual Studio's debug console beside
   it is skipped. That title format is observed, not documented; with no match, the front-most
@@ -156,9 +154,8 @@ tick, so notifying on "is currently Waiting" would repeat the same prompt indefi
 keyed off `activity_changed_utc` instead, giving one notification per wait, while a second prompt
 in the same session still gets its own because the timestamp moves.
 
-**Settings → Notify → When waiting → Show a card** turns it off. It is **on by default**, which is why the marker
-file records the *disabled* state (`notifications-disabled.flag`) — that way a missing or
-unreadable preference gives the default, and there is no first-run write. The setting is read at
+**Settings → Notify → When waiting → Show a card** turns it off. It is **on by default** (`notifications_enabled`), so a missing or
+unreadable settings file gives the card, and there is no first-run write. The setting is read at
 the moment of use, so it takes effect immediately rather than at the next restart, and like the
 HTTP setting it survives one.
 
@@ -168,7 +165,7 @@ with *Show a card*, *Play a sound*, and which sound — all independent, so any 
 both or neither works for each.
 
 - **Defaults:** only the waiting card is on. The waiting sound, the idle card and the idle sound
-  are off (`waiting-sound.flag`, `idle-card.flag`, `idle-sound.flag` mark them on) — a turn ends
+  are off (`waiting_sound_enabled`, `idle_card_enabled`, `idle_sound_enabled`) — a turn ends
   far more often than a prompt appears, and an unasked-for sound is the most intrusive thing the
   app could do.
 - **The idle card** reads *YOUR TURN* with the pet in its idle pose and a green countdown, and comes
@@ -177,9 +174,8 @@ both or neither works for each.
   starts is not announced.
 - **The sounds follow the pet:** the dog **pants** by default and can **woof** instead; the cat
   **purrs** by default and can **meow** — chosen separately for each moment and each pet
-  (`dog-woof.flag`, `cat-meow.flag`, `idle-dog-woof.flag`, `idle-cat-meow.flag`, and
-  `bot-alternate.flag`, `duck-alternate.flag`, `goat-alternate.flag` and their `idle-` twins), so
-  switching pets keeps every choice. Picking a sound, or switching one on, plays it. The bot
+  (`waiting_alternate_sound_pets` and `idle_alternate_sound_pets` list the pets on their second
+  sound), so switching pets keeps every choice. Picking a sound, or switching one on, plays it. The bot
   **chirps** by default and can **clamp**; the duck **quacks** by default and can **fly away** (8
   seconds); the goat **bleats** by default and can call **the herd** — the longest sound at 10
   seconds. A long sound is cut short by the next sound to play.
@@ -203,14 +199,13 @@ down" case the display already handles — instead of a 503 it would have to lea
 both loopback and the LAN address.
 
 **The choice survives a restart**, including the automatic one at login. It is remembered as a
-marker file, `%LOCALAPPDATA%\BorisCodeStatus\http-enabled.flag`, rather than a field in
+`http_enabled` in `%LOCALAPPDATA%\BorisCodeStatus\settings.json`, rather than a field in
 `state.json`: that file is the wire payload, rewritten constantly by the hook process, and a
-preference has no business being carried in it or exposed on `/status`. As with every tray
-preference, the file marks the non-default setting — here *enabled* — so a missing or unreadable
-file leaves the endpoint closed. Delete it to switch the service off without the menu.
+preference has no business being carried in it or exposed on `/status`. A missing or unreadable
+file leaves the endpoint closed. Set it to `false` and restart to switch the service off without the menu.
 
 **Upgrading from an earlier version switches the service off.** Earlier versions defaulted to on
-and recorded a pause as `http-paused.flag`; that file is now ignored. Enable the service once from
+and recorded a pause as `http-paused.flag`; that file is ignored. Enable the service once from
 the menu after upgrading and it stays on.
 
 The firewall notice described under [Windows Firewall](install.md#the-one-place-admin-can-appear-windows-firewall)

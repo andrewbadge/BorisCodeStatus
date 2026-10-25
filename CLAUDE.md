@@ -89,16 +89,20 @@ this turn (`Stop` sets `Idle` the instant a turn ends, so a live conversation re
 the time); `session_status` is whether a session is open at all. Keep them independent — the session
 hooks deliberately leave `activity` untouched.
 
-**Tray preferences are marker files, not `state.json` fields** (`FlagPreference`, in `Core/State`).
-`state.json` is the wire payload the hook process rewrites constantly; a preference does not belong
-in it or on `/status`. The file always marks the **non-default** setting, so a missing or unreadable
-preference yields the default and there is no first-run write — hence `http-enabled.flag` (default
-off, because `/status` is unauthenticated and LAN-wide) and `notifications-disabled.flag` (default
-on), and `usage-api-enabled.flag` (default off — the only outbound call and the only reader of the
-OAuth token must be opted into). The one preference with a value, the waiting card's click target,
-follows the same rule with content: `card-click-app.txt` holds a process name, and its absence
-means "just dismiss" (`ClickTargetPreference`). All live in the settings window that the tray menu's
-**Settings…** opens (`SettingsWindow`); its **Advanced** page also holds one-off actions and repairs.
+**Tray preferences are one `settings.json`, not `state.json` fields** (`AppSettings` and
+`SettingsStore`, in `Core/State`). `state.json` is the wire payload the hook process rewrites
+constantly; a preference does not belong in it or on `/status`. Each property's initial value is its
+default, so a missing, unreadable or unparseable file — or a member missing from one — yields the
+default and there is no first-run write. The defaults carry weight: `http_enabled` is off because
+`/status` is unauthenticated and LAN-wide, `usage_api_enabled` is off because it is the only
+outbound call and the only reader of the OAuth token, and `notifications_enabled` is on. Callers use
+the thin `*Preference` classes, which read the file at the moment of use (nothing is cached) and
+never throw; only the tray touches it, so a lock plus an atomic replace is all the concurrency
+needed. A new preference is a new `AppSettings` member with a `JsonPropertyName` and a wrapper —
+and a row in `docs/SPECS.md`. Before 1.7 each preference was its own marker file; `LegacySettings`
+imports them once and deletes them, so keep its file list when touching it. All of it is edited in
+the settings window that the tray menu's **Settings…** opens (`SettingsWindow`); its **Advanced**
+page also holds one-off actions and repairs.
 
 **`Refresh` runs on every state write *and* every pose-timer tick.** Anything with a side effect —
 a notification, a balloon — must fire on a transition, keyed off `activity_changed_utc`, not on
