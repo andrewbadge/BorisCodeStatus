@@ -2,19 +2,17 @@ using BorisCodeStatus.Core.State;
 
 namespace BorisCodeStatus.Core.Tests;
 
-/// <summary>The pet choice: the dog by default, any pet by name, and the old cat marker still honoured.</summary>
+/// <summary>The pet choice: the dog by default, and any pet by name.</summary>
 public class PetPreferenceTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "BorisCodeStatusTests", Guid.NewGuid().ToString("N"));
 
-    private string PetFile => Path.Combine(_directory, "pet.txt");
-
-    private string CatFlag => Path.Combine(_directory, "cat-person.flag");
+    private string SettingsPath => Path.Combine(_directory, "settings.json");
 
     public PetPreferenceTests() => Directory.CreateDirectory(_directory);
 
     [Fact]
-    public void DogByDefault() => Assert.Equal(Pet.Dog, PetPreference.Get(PetFile, CatFlag));
+    public void DogByDefault() => Assert.Equal(Pet.Dog, PetPreference.Get(SettingsPath));
 
     [Theory]
     [InlineData(Pet.Cat)]
@@ -24,29 +22,19 @@ public class PetPreferenceTests : IDisposable
     [InlineData(Pet.Dog)]
     public void RemembersTheChoice(Pet pet)
     {
-        Assert.True(PetPreference.TrySet(pet, PetFile, CatFlag));
-        Assert.Equal(pet, PetPreference.Get(PetFile, CatFlag));
-    }
-
-    /// <summary>An upgrade from the two-pet version keeps the cat, and the next choice retires the marker.</summary>
-    [Fact]
-    public void OldCatMarkerIsHonouredUntilTheNextChoice()
-    {
-        File.WriteAllText(CatFlag, "");
-        Assert.Equal(Pet.Cat, PetPreference.Get(PetFile, CatFlag));
-
-        PetPreference.TrySet(Pet.Dog, PetFile, CatFlag);
-        Assert.Equal(Pet.Dog, PetPreference.Get(PetFile, CatFlag));
+        Assert.True(PetPreference.TrySet(pet, SettingsPath));
+        Assert.Equal(pet, PetPreference.Get(SettingsPath));
     }
 
     [Theory]
-    [InlineData("")]
-    [InlineData("Hamster")]
-    [InlineData("7")]
+    [InlineData("""{ "pet": "Hamster" }""")]
+    [InlineData("""{ "pet": 7 }""")]
+    [InlineData("""{ "pet": "" }""")]
+    [InlineData("{}")]
     public void UnknownContentFallsBackToTheDog(string content)
     {
-        File.WriteAllText(PetFile, content);
-        Assert.Equal(Pet.Dog, PetPreference.Get(PetFile, CatFlag));
+        File.WriteAllText(SettingsPath, content);
+        Assert.Equal(Pet.Dog, PetPreference.Get(SettingsPath));
     }
 
     public void Dispose()

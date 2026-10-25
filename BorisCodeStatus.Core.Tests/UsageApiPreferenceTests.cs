@@ -11,7 +11,7 @@ public class UsageApiPreferenceTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "BorisCodeStatusTests", Guid.NewGuid().ToString("N"));
 
-    private string FlagPath => Path.Combine(_directory, "usage-api-enabled.flag");
+    private string SettingsPath => Path.Combine(_directory, "settings.json");
 
     public UsageApiPreferenceTests() => Directory.CreateDirectory(_directory);
 
@@ -22,26 +22,26 @@ public class UsageApiPreferenceTests : IDisposable
     [Fact]
     public void DisabledByDefault()
     {
-        Assert.False(UsageApiPreference.IsEnabled(FlagPath));
-        Assert.False(File.Exists(FlagPath));
+        Assert.False(UsageApiPreference.IsEnabled(SettingsPath));
+        Assert.False(File.Exists(SettingsPath));
     }
 
     [Fact]
     public void RemembersBeingEnabled()
     {
-        Assert.True(UsageApiPreference.TrySetEnabled(true, FlagPath));
+        Assert.True(UsageApiPreference.TrySetEnabled(true, SettingsPath));
 
         // A separate read is the point: this is what the next poll and the next process start do.
-        Assert.True(UsageApiPreference.IsEnabled(FlagPath));
+        Assert.True(UsageApiPreference.IsEnabled(SettingsPath));
     }
 
     [Fact]
     public void RemembersBeingDisabledAgain()
     {
-        UsageApiPreference.TrySetEnabled(true, FlagPath);
-        Assert.True(UsageApiPreference.TrySetEnabled(false, FlagPath));
+        UsageApiPreference.TrySetEnabled(true, SettingsPath);
+        Assert.True(UsageApiPreference.TrySetEnabled(false, SettingsPath));
 
-        Assert.False(UsageApiPreference.IsEnabled(FlagPath));
+        Assert.False(UsageApiPreference.IsEnabled(SettingsPath));
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class UsageApiPreferenceTests : IDisposable
         var blocker = Path.Combine(_directory, "blocker");
         File.WriteAllText(blocker, "not a directory");
 
-        Assert.False(UsageApiPreference.TrySetEnabled(true, Path.Combine(blocker, "usage-api-enabled.flag")));
+        Assert.False(UsageApiPreference.TrySetEnabled(true, Path.Combine(blocker, "settings.json")));
     }
 
     /// <summary>

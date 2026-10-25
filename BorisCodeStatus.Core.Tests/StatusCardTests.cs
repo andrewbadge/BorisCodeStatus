@@ -14,9 +14,9 @@ public class StatusCardTests : IDisposable
 
     public StatusCardTests() => Directory.CreateDirectory(_directory);
 
-    private string PinnedPath => Path.Combine(_directory, "status-card-pinned.flag");
+    private string PinnedPath => Path.Combine(_directory, "settings.json");
 
-    private string PositionPath => Path.Combine(_directory, "status-card-position.txt");
+    private string PositionPath => Path.Combine(_directory, "settings.json");
 
     [Fact]
     public void UnpinnedByDefault() => Assert.False(StatusCardPreference.IsPinned(PinnedPath));
@@ -37,10 +37,10 @@ public class StatusCardTests : IDisposable
     }
 
     [Theory]
-    [InlineData("")]
-    [InlineData("12")]
-    [InlineData("a,b")]
-    [InlineData("1,2,3")]
+    [InlineData("{}")]
+    [InlineData("""{ "status_card_position": null }""")]
+    [InlineData("not json")]
+    [InlineData("""{ "status_card_position": "1,2" }""")]
     public void AGarbledPositionMeansNone(string content)
     {
         File.WriteAllText(PositionPath, content);

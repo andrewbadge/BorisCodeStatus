@@ -53,8 +53,9 @@ internal sealed class SettingsWindow : Form
     private readonly Font _body;
     private readonly Font _small;
 
-    private readonly Panel[] _pages = new Panel[3];
-    private readonly NavItem[] _nav = new NavItem[3];
+    private readonly Panel[] _pages = new Panel[4];
+    private readonly NavItem[] _nav = new NavItem[4];
+    private readonly Slider _warnAt;
 
     private readonly Toggle _pinned;
     private readonly Toggle _mini;
@@ -119,7 +120,7 @@ internal sealed class SettingsWindow : Form
         Controls.Add(close);
 
         // Nav and pages.
-        string[] names = ["Notify", "Card", "Advanced"];
+        string[] names = ["Notify", "Card", "Usage", "Advanced"];
         for (var i = 0; i < names.Length; i++)
         {
             var index = i;
@@ -204,8 +205,30 @@ internal sealed class SettingsWindow : Form
             petGroup.Controls.Add(choice);
         }
 
+        // Usage.
+        var usagePage = _pages[2];
+        Heading(usagePage, "Session warning", 24);
+        var warnGroup = Group(usagePage, 60, rows: 1, rowHeight: 104);
+        warnGroup.Controls.Add(new Label
+        {
+            Text = "Warn me once per session when 5h usage passes this. 100% never warns.",
+            Font = _small,
+            ForeColor = Muted,
+            BackColor = Back,
+            AutoSize = true,
+            Location = P(18, 16),
+        });
+        _warnAt = new Slider(SessionWarningPreference.Minimum, SessionWarningPreference.Maximum, 5, _body)
+        {
+            Bounds = R(18, 48, GroupWidth - 36, 40),
+        };
+
+        // On release, not on every step of the drag: each change is a file write and a refresh.
+        _warnAt.Committed += (_, _) => _tray.SetSessionWarnAt(_warnAt.Value);
+        warnGroup.Controls.Add(_warnAt);
+
         // Advanced.
-        var advancedPage = _pages[2];
+        var advancedPage = _pages[3];
         Heading(advancedPage, "Advanced", 24);
         var serviceGroup = Group(advancedPage, 60, rows: 2);
         _http = new Toggle();
@@ -296,6 +319,7 @@ internal sealed class SettingsWindow : Form
         _http.On = _tray.HttpOn;
         _http.Enabled = !_tray.HttpBusy;
         _usageApi.On = _tray.UsageApiOn;
+        _warnAt.SetValue(_tray.SessionWarnAt);
 
         // Greyed out while the service is off: with nothing listening there is nothing for a
         // rule to let through, and adding one would open the firewall for no reason.
@@ -823,6 +847,111 @@ internal sealed class SettingsWindow : Form
                 using var knob = new SolidBrush(Fade(Muted, dim));
                 graphics.FillRectangle(knob, box.X + (p * 4), box.Y + (p * 4), p * 14, p * 14);
             }
+        }
+    }
+
+    /// <summary>A horizontal slider in the same square-knob style, with its value in text on the right.</summary>
+    private sealed class Slider : Painted
+    {
+        private readonly int _min;
+        private readonly int _max;
+        private readonly int _step;
+        private readonly Font _font;
+        private bool _dragging;
+
+        public Slider(int min, int max, int step, Font font)
+        {
+            _min = min;
+            _max = max;
+            _step = step;
+            _font = font;
+            Value = min;
+        }
+
+        public int Value { get; private set; }
+
+        /// <summary>Raised when the user lets go, with <see cref="Value"/> final.</summary>
+        public event EventHandler? Committed;
+
+        /// <summary>Sets the value from outside; ignored mid-drag so a refresh cannot yank the knob.</summary>
+        public void SetValue(int value)
+        {
+            if (!_dragging && Value != value)
+            {
+                Value = value;
+                Invalidate();
+            }
+        }
+
+        private Rectangle Track => new(Pixel * 8, 0, Width - (Pixel * 8) - (Pixel * 72), Height);
+
+        private void Drag(int x)
+        {
+            var fraction = Math.Clamp((x - Track.X) / (double)Track.Width, 0, 1);
+            var steps = (int)Math.Round(fraction * (_max - _min) / _step);
+            var value = _min + (steps * _step);
+            if (value != Value)
+            {
+                Value = value;
+                Invalidate();
+            }
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+            _dragging = true;
+            Capture = true;
+            Drag(e.X);
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            if (_dragging)
+            {
+                Drag(e.X);
+            }
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+            if (_dragging)
+            {
+                _dragging = false;
+                Capture = false;
+                Committed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var graphics = e.Graphics;
+            var p = Pixel;
+            var track = Track;
+            var knobSize = p * 18;
+            var middle = Height / 2;
+            var knobX = track.X + (int)((Value - _min) / (double)(_max - _min) * (track.Width - knobSize));
+
+            using (var rail = new SolidBrush(WaitingCard.BarTrackColor))
+            {
+                graphics.FillRectangle(rail, track.X, middle - (p * 3), track.Width, p * 6);
+            }
+
+            using (var lit = new SolidBrush(Accent))
+            {
+                graphics.FillRectangle(lit, track.X, middle - (p * 3), knobX - track.X, p * 6);
+                graphics.FillRectangle(lit, knobX, middle - (knobSize / 2), knobSize, knobSize);
+            }
+
+            TextRenderer.DrawText(
+                graphics,
+                $"{Value}%",
+                _font,
+                new Rectangle(track.Right + (p * 16), 0, p * 56, Height),
+                Ink,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Right | TextFormatFlags.NoPadding);
         }
     }
 

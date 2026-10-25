@@ -100,7 +100,14 @@ internal sealed class WaitingCard : Form
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
 
         _ticker.Tick += (_, _) => Tick();
-        Click += (_, _) => Dismiss();
+        Click += (_, _) =>
+        {
+            // OnClick handles a persistent card's own buttons; the plain click is for the others.
+            if (!Persistent)
+            {
+                Dismiss();
+            }
+        };
     }
 
     protected override bool ShowWithoutActivation => true;
@@ -130,6 +137,13 @@ internal sealed class WaitingCard : Form
     private int SpritePixelSize => Math.Max(1, (int)Math.Round(SpritePixel * DpiScale));
 
     private bool _pinned;
+
+    /// <summary>
+    /// Stays until clicked rather than fading after <see cref="Lifetime"/>, for a warning that
+    /// must not be missed. Unlike a pinned card it still sits in the stack and is not draggable.
+    /// </summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public bool Persistent { get; set; }
 
     /// <summary>
     /// A pinned card stays up until unpinned, and is dragged rather than clicked: it does not count
@@ -263,6 +277,25 @@ internal sealed class WaitingCard : Form
             return;
         }
 
+        // A persistent card is dismissed by its buttons (or the cross), not by a click anywhere:
+        // a warning should not vanish because it was clicked by accident.
+        if (Persistent)
+        {
+            var (dismiss, link) = ButtonBoxes();
+            var at = PointToClient(MousePosition);
+            if (dismiss.Contains(at))
+            {
+                Dismiss();
+            }
+            else if (link?.Contains(at) == true)
+            {
+                Dismiss();
+                LinkClicked?.Invoke(this, EventArgs.Empty);
+            }
+
+            return;
+        }
+
         base.OnClick(e);
     }
 
@@ -306,6 +339,18 @@ internal sealed class WaitingCard : Form
         // The handle must exist before DeviceDpi means anything, and before the layout can be
         // measured for the monitor the card will actually appear on.
         _ = Handle;
+
+        // Cards that sit in the default corner queue up from the bottom, oldest lowest, so two at
+        // once do not cover each other. A card dragged somewhere of its own leaves the queue.
+        if (_pinned && PinnedLocation is not null)
+        {
+            Stacked.Remove(this);
+        }
+        else if (!Stacked.Contains(this))
+        {
+            Stacked.Add(this);
+        }
+
         Relayout();
 
         if (!Visible)
@@ -366,6 +411,13 @@ internal sealed class WaitingCard : Form
         var workingArea = Screen.PrimaryScreen?.WorkingArea ?? Screen.GetWorkingArea(Point.Empty);
         var gap = L(ScreenMarginFromTaskbar);
         var location = new Point(workingArea.Right - size.Width - gap, workingArea.Bottom - size.Height - gap);
+
+        var slot = Stacked.IndexOf(this);
+        if (slot > 0)
+        {
+            location.Y -= Stacked.Take(slot).Sum(card => card.Height + gap);
+            location = KeepOnScreen(new Rectangle(location, size), workingArea);
+        }
 
         if (_pinned && (Visible || PinnedLocation is not null))
         {
@@ -433,7 +485,7 @@ internal sealed class WaitingCard : Form
 
         // Paused while hovered: someone reading the card should not have it vanish mid-sentence.
         // A pinned card does not count down at all.
-        if (!_pinned && !ClientRectangle.Contains(PointToClient(Cursor.Position)))
+        if (!_pinned && !Persistent && !ClientRectangle.Contains(PointToClient(Cursor.Position)))
         {
             _remaining -= now - _lastTick;
         }
@@ -532,6 +584,64 @@ internal sealed class WaitingCard : Form
 
         DrawBar(graphics, screen);
         DrawCloseButton(graphics);
+        DrawButtons(graphics);
+    }
+
+    /// <summary>The optional link button's label; only a <see cref="Persistent"/> card shows buttons.</summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public string? LinkText { get; set; }
+
+    /// <summary>Raised when the link button is clicked, after the card has hidden itself.</summary>
+    public event EventHandler? LinkClicked;
+
+    /// <summary>
+    /// The buttons in the chin under the screen, right to left: Dismiss, then the link if there is
+    /// one. Empty on a card that is not persistent, and on the mini card, which has no chin.
+    /// </summary>
+    private (Rectangle Dismiss, Rectangle? Link) ButtonBoxes()
+    {
+        if (!Persistent || Mini)
+        {
+            return (Rectangle.Empty, null);
+        }
+
+        var pixel = FontPixel;
+        var top = L(Border + Frame + ScreenHeight) + L(4);
+        var height = L(Chin - 8);
+        var right = ClientSize.Width - L(Border + Frame);
+
+        var dismissWidth = PixelFont.Measure("Dismiss", pixel, 1, bold: true) + L(16);
+        var dismiss = new Rectangle(right - dismissWidth, top, dismissWidth, height);
+
+        Rectangle? link = null;
+        if (LinkText is { } text)
+        {
+            var width = PixelFont.Measure(text, pixel, 1, bold: true) + L(16);
+            link = new Rectangle(dismiss.X - L(8) - width, top, width, height);
+        }
+
+        return (dismiss, link);
+    }
+
+    private void DrawButtons(Graphics graphics)
+    {
+        var (dismiss, link) = ButtonBoxes();
+        var pixel = FontPixel;
+        foreach (var (box, text) in new[] { (dismiss, "Dismiss"), (link ?? Rectangle.Empty, LinkText ?? string.Empty) })
+        {
+            if (box.IsEmpty)
+            {
+                continue;
+            }
+
+            using (var pen = new Pen(MutedColor, pixel))
+            {
+                graphics.DrawRectangle(pen, box.X, box.Y, box.Width - pixel, box.Height - pixel);
+            }
+
+            var width = PixelFont.Measure(text, pixel, 1, bold: true);
+            PixelFont.Draw(graphics, text, box.X + ((box.Width - width) / 2), box.Y + ((box.Height - (PixelFont.GlyphHeight * pixel)) / 2), pixel, 1, TitleColor, bold: true);
+        }
     }
 
     /// <summary>
@@ -693,10 +803,27 @@ internal sealed class WaitingCard : Form
         }
     }
 
+    /// <summary>The cards using the default corner, in the order they appeared; see <see cref="ShowContent"/>.</summary>
+    private static readonly List<WaitingCard> Stacked = [];
+
+    /// <summary>A card leaving the queue lets the ones above it drop down into the gap.</summary>
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+        if (!Visible && Stacked.Remove(this))
+        {
+            foreach (var card in Stacked.Where(card => card.Visible))
+            {
+                card.Relayout();
+            }
+        }
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
+            Stacked.Remove(this);
             _ticker.Dispose();
             _detailFont?.Dispose();
         }

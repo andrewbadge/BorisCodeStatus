@@ -199,27 +199,28 @@ change.
 ## 9. Preferences
 
 All files live in `%LOCALAPPDATA%\BorisCodeStatus\`. Preferences are never in `state.json` and
-never served. A marker file always records the **non-default** choice, so a missing or unreadable
-file means the default and there is no first-run write. Each preference is read once at startup
-and kept in step by its control.
+never served. They are one file, `settings.json`, read by the tray only (the hook process never
+reads a preference) at the moment of use, so a hand edit applies without a restart. A missing,
+unreadable or unparseable file — or a member missing from it — means the default, and nothing is
+written until the user first changes a setting. A file that will not parse is copied to
+`settings.json.bak` before the next change replaces it.
 
-| File | Present means | Default (absent) |
+| Member | Meaning | Default |
 |---|---|---|
-| `http-enabled.flag` | HTTP service on | Off |
-| `usage-api-enabled.flag` | Usage-API fallback allowed | Off |
-| `notifications-disabled.flag` | Waiting card off | Waiting card on |
-| `waiting-sound.flag` | Waiting sound on | Off |
-| `dog-woof.flag` / `cat-meow.flag` | Waiting sound is woof / meow | Panting / purr |
-| `idle-card.flag` | Idle card on | Off |
-| `idle-sound.flag` | Idle sound on | Off |
-| `idle-dog-woof.flag` / `idle-cat-meow.flag` | Idle sound is woof / meow | Panting / purr |
-| `card-click-app.txt` | Holds the process name to bring forward | Just dismiss |
-| `status-card-pinned.flag` | Status card pinned | Snapshot on double-click |
-| `status-card-mini.flag` | Mini status card | Full card |
-| `status-card-position.txt` | `x,y` of the pinned card, in screen pixels | Bottom-right of the primary working area |
-| `pet.txt` | Holds the pet's name: `Cat`, `Bot`, `Duck` or `Goat` | Dog |
-| `cat-person.flag` | Cat (read only when `pet.txt` is missing; removed by the next choice) | Dog |
-| `bot-alternate.flag` / `duck-alternate.flag` / `goat-alternate.flag` (and `idle-` twins) | Bot / duck / goat plays its second sound | Its default |
+| `http_enabled` | HTTP service on | `false` |
+| `usage_api_enabled` | Usage-API fallback allowed | `false` |
+| `notifications_enabled` | Waiting card shown | `true` |
+| `waiting_sound_enabled` / `idle_sound_enabled` | Sound at that moment | `false` |
+| `idle_card_enabled` | Idle card shown | `false` |
+| `waiting_alternate_sound_pets` / `idle_alternate_sound_pets` | Pets (by name) playing their second sound at that moment: woof, meow, … | `[]` |
+| `click_target_app` | Process name to bring forward, or `null` to just dismiss | `null` |
+| `session_warning_percent` | 5-hour usage past which the warning card shows, 50–100 | `80` |
+| `status_card_pinned` / `status_card_mini` | Status card pinned / mini | `false` |
+| `status_card_position` | `{ "x", "y" }` of the pinned card, in screen pixels | `null` (bottom-right of the primary working area) |
+| `pet` | `Dog`, `Cat`, `Bot`, `Duck` or `Goat` | `Dog` |
+
+Versions before 1.7 kept each preference in a file of its own (`http-enabled.flag`,
+`pet.txt`, …). The first start of 1.7 imports them into `settings.json` and deletes them.
 
 The same folder also holds `state.json`, `usage-api.stamp` and `error.log`.
 
