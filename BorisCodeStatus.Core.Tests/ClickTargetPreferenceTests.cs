@@ -7,7 +7,7 @@ public class ClickTargetPreferenceTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "BorisCodeStatusTests", Guid.NewGuid().ToString("N"));
 
-    private string FilePath => Path.Combine(_directory, "card-click-app.txt");
+    private string FilePath => Path.Combine(_directory, "settings.json");
 
     public ClickTargetPreferenceTests() => Directory.CreateDirectory(_directory);
 
@@ -33,11 +33,10 @@ public class ClickTargetPreferenceTests : IDisposable
         ClickTargetPreference.TrySet(null, FilePath);
 
         Assert.Null(ClickTargetPreference.Get(FilePath));
-        Assert.False(File.Exists(FilePath));
     }
 
     [Fact]
-    public void AnEmptyFileIsTheDefault()
+    public void ABlankNameIsTheDefault()
     {
         File.WriteAllText(FilePath, "  \r\n");
 

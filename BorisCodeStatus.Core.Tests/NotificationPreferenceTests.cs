@@ -11,7 +11,7 @@ public class NotificationPreferenceTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "BorisCodeStatusTests", Guid.NewGuid().ToString("N"));
 
-    private string FlagPath => Path.Combine(_directory, "notifications-disabled.flag");
+    private string SettingsPath => Path.Combine(_directory, "settings.json");
 
     public NotificationPreferenceTests() => Directory.CreateDirectory(_directory);
 
@@ -19,39 +19,38 @@ public class NotificationPreferenceTests : IDisposable
     [Fact]
     public void EnabledByDefault()
     {
-        Assert.True(NotificationPreference.AreEnabled(FlagPath));
-        Assert.False(File.Exists(FlagPath));
+        Assert.True(NotificationPreference.AreEnabled(SettingsPath));
+        Assert.False(File.Exists(SettingsPath));
     }
 
     [Fact]
     public void RemembersBeingDisabled()
     {
-        Assert.True(NotificationPreference.TrySetEnabled(false, FlagPath));
+        Assert.True(NotificationPreference.TrySetEnabled(false, SettingsPath));
 
         // A separate read is the point: this is what the next process start does.
-        Assert.False(NotificationPreference.AreEnabled(FlagPath));
+        Assert.False(NotificationPreference.AreEnabled(SettingsPath));
     }
 
     [Fact]
     public void RemembersBeingReEnabled()
     {
-        NotificationPreference.TrySetEnabled(false, FlagPath);
-        NotificationPreference.TrySetEnabled(true, FlagPath);
+        NotificationPreference.TrySetEnabled(false, SettingsPath);
+        NotificationPreference.TrySetEnabled(true, SettingsPath);
 
-        Assert.True(NotificationPreference.AreEnabled(FlagPath));
-        Assert.False(File.Exists(FlagPath));
+        Assert.True(NotificationPreference.AreEnabled(SettingsPath));
     }
 
     [Fact]
     public void TogglingIsIdempotent()
     {
-        NotificationPreference.TrySetEnabled(false, FlagPath);
-        NotificationPreference.TrySetEnabled(false, FlagPath);
-        Assert.False(NotificationPreference.AreEnabled(FlagPath));
+        NotificationPreference.TrySetEnabled(false, SettingsPath);
+        NotificationPreference.TrySetEnabled(false, SettingsPath);
+        Assert.False(NotificationPreference.AreEnabled(SettingsPath));
 
-        NotificationPreference.TrySetEnabled(true, FlagPath);
-        NotificationPreference.TrySetEnabled(true, FlagPath);
-        Assert.True(NotificationPreference.AreEnabled(FlagPath));
+        NotificationPreference.TrySetEnabled(true, SettingsPath);
+        NotificationPreference.TrySetEnabled(true, SettingsPath);
+        Assert.True(NotificationPreference.AreEnabled(SettingsPath));
     }
 
     [Fact]

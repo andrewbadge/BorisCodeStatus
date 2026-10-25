@@ -7,7 +7,7 @@ public class SessionWarningPreferenceTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "BorisCodeStatusTests", Guid.NewGuid().ToString("N"));
 
-    private string FilePath => Path.Combine(_directory, "session-warning.txt");
+    private string FilePath => Path.Combine(_directory, "settings.json");
 
     public SessionWarningPreferenceTests() => Directory.CreateDirectory(_directory);
 
@@ -27,19 +27,19 @@ public class SessionWarningPreferenceTests : IDisposable
     }
 
     [Fact]
-    public void SettingTheDefaultRemovesTheFile()
+    public void ChoosingTheDefaultStoresIt()
     {
         SessionWarningPreference.TrySet(65, FilePath);
         SessionWarningPreference.TrySet(SessionWarningPreference.Default, FilePath);
 
-        Assert.False(File.Exists(FilePath));
+        Assert.Equal(80, SessionWarningPreference.Get(FilePath));
     }
 
     [Theory]
-    [InlineData("")]
+    [InlineData("{}")]
     [InlineData("abc")]
-    [InlineData("10")]
-    [InlineData("250")]
+    [InlineData("""{ "session_warning_percent": 10 }""")]
+    [InlineData("""{ "session_warning_percent": 250 }""")]
     public void GarbageOrOutOfRangeIsTheDefault(string content)
     {
         File.WriteAllText(FilePath, content);

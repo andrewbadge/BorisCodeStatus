@@ -12,7 +12,7 @@ public class SoundPreferenceTests : IDisposable
 
     public SoundPreferenceTests() => Directory.CreateDirectory(_directory);
 
-    private string Flag(string name) => Path.Combine(_directory, name);
+    private string Flag(string name) => Path.Combine(_directory, "settings.json");
 
     [Theory]
     [InlineData(NotifyMoment.Waiting)]
