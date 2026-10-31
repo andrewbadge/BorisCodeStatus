@@ -3,11 +3,11 @@
 [← Back to the README](../README.md)
 
 
-**Status: in progress.** Steps 1 to 4 of the [order of work](#order-of-work) exist in
+**Status: in progress.** Steps 1 to 5 of the [order of work](#order-of-work) exist in
 [`macos/`](../macos): the `BorisCodeStatusCore` Swift package, the `BorisCodeStatusHooks` helper,
 the shared fixtures, a menu-bar app that draws the pet from live state, the waiting, idle,
-status and usage-warning cards, the pets' sounds, and a settings window. Nothing registers the
-hooks yet, and there is no update check. This page records how the macOS version is built, what
+status and usage-warning cards, the pets' sounds, a settings window, and hook registration.
+There is no login item, signing, notarisation or update check yet. This page records how the macOS version is built, what
 it deliberately leaves out, and which Windows decisions carry over unchanged. As parts ship, they
 move into the regular docs (`install.md`, `privacy.md`, `tray.md`, `known-limitations.md`) and
 this page shrinks to the reasoning.
@@ -163,16 +163,19 @@ Downloads — from a randomised read-only path under
 built never to report errors. This is the same failure the Windows docs warn about for `bin\Debug`
 builds.
 
-So registration must refuse a translocated path, and also refuse build output under `DerivedData`
-or `.build`. It should also warn whenever the registered path no longer exists. Installing to
-`/Applications` is the supported route.
+So registration refuses a translocated path, and also build output under `DerivedData` or
+`.build` (`HookPathGuard`). The app registers on every launch, as Windows does, and is quiet about
+an ordinary refusal; it shows a card for the two cases a user could not otherwise see: running
+translocated, and a registered helper that no longer exists. Installing to `/Applications` is the
+supported route.
 
 ### Uninstalling
 
 A Mac app is removed by dragging it to the Bin; there is no uninstaller to run cleanup. The stale
 `statusLine` and `hooks` entries the Windows MSI already leaves behind would be the norm here, not
-an edge case. Hence **Settings → Advanced → Unregister hooks**, and `install.md` should tell users to
-use it before deleting the app.
+an edge case. Hence **Settings → Advanced → Unregister hooks**, which removes only this app's entries, and
+`install.md` should tell users to use it before deleting the app. Opening the app again registers
+them again, so the card it shows says to quit first.
 
 ### No sandbox, no App Store
 

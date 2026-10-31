@@ -466,6 +466,64 @@ public final class MenuBarController: NSObject {
         return card
     }
 
+    // MARK: - Hooks
+
+    /// The helper inside this bundle. Under `swift run` there is no bundle, so this points at a
+    /// path that does not exist and `HookPathGuard` refuses it.
+    public static var hooksPath: String {
+        Bundle.main.bundleURL.appending(path: "Contents/Helpers/\(ClaudeSettingsMerger.hooksExecutableName)").path(percentEncoded: false)
+    }
+
+    /// Merges this copy's hook registrations into `~/.claude/settings.json`. Run on every launch:
+    /// it is idempotent, so it also repairs a stale path after the app has been moved or upgraded.
+    ///
+    /// At launch it is quiet about the ordinary refusals — a development build, a third-party
+    /// statusLine — as Windows is, because the app starts at login and should not greet the user
+    /// with a card. Two things are worth one: a translocated copy, which looks installed but cannot
+    /// register, and a registration whose helper has gone, which fails silently on every event.
+    /// From the settings window (`reporting`), every outcome is reported.
+    public func registerHooks(reporting: Bool) {
+        let path = Self.hooksPath
+        let result = ClaudeSettingsMerger.merge(hooksPath: path)
+
+        if reporting {
+            if !result.warnings.isEmpty {
+                notice(result.warnings.joined(separator: " "))
+            } else {
+                notice(result.changed
+                    ? "Hooks registered in ~/.claude/settings.json. Restart Claude Code to pick them up."
+                    : "Hooks were already registered correctly.")
+            }
+            onRefresh?()
+            return
+        }
+
+        if path.contains("/AppTranslocation/"), let warning = result.warnings.first {
+            notice(warning)
+        } else if let registered = ClaudeSettingsMerger.registeredHooksPath(),
+                  !FileManager.default.isExecutableFile(atPath: registered) {
+            notice("Claude Code is set to run a BorisCodeStatus hook that no longer exists (\(registered)), so nothing reaches this app. " +
+                "Open Settings, then Advanced, and choose Re-register hooks from an installed copy.")
+        }
+    }
+
+    /// Removes our entries from `~/.claude/settings.json` — the step to take before dragging the
+    /// app to the Bin, since a Mac app has no uninstaller to do it.
+    public func unregisterHooks() {
+        let result = ClaudeSettingsMerger.unregister()
+        if !result.warnings.isEmpty {
+            notice(result.warnings.joined(separator: " "))
+        } else {
+            notice(result.changed
+                ? "Hooks removed from ~/.claude/settings.json. Quit BorisCodeStatus before moving it to the Bin: opening it again registers them again."
+                : "No BorisCodeStatus hooks were registered.")
+        }
+        onRefresh?()
+    }
+
+    /// Where Claude Code currently runs our hook from, or nil if no entry of ours is registered.
+    public var registeredHooksPath: String? { ClaudeSettingsMerger.registeredHooksPath() }
+
     // MARK: - Menu
 
     /// Kept short so it opens instantly; everything else lives in the settings window. The header

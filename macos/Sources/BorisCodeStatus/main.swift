@@ -26,6 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onRefresh = { [weak settings] in settings?.refresh() }
         self.menuBar = menuBar
         self.settings = settings
+
+        // After the menu bar is up, so a locked or unusual settings.json never delays startup.
+        menuBar.registerHooks(reporting: false)
     }
 }
 

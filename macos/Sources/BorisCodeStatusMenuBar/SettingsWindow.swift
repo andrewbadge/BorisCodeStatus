@@ -4,8 +4,7 @@ import SwiftUI
 
 /// The settings window the menu's **Settings…** opens: Notify, Card, Usage, Advanced and About, as
 /// on Windows, less what the Mac build does not have (the HTTP service, the usage API and the
-/// firewall). Hook registration arrives on the Advanced page with step 5 of docs/macos-port.md, and
-/// the update check with the Mac release in step 6.
+/// firewall). The update check arrives with the Mac release, step 6 of docs/macos-port.md.
 ///
 /// It owns no state. Every value is read from `MenuBarController`, and every control calls it, so
 /// the menu bar and the cards change at once and the file write happens in one place.
@@ -67,6 +66,7 @@ final class SettingsModel {
     var warnAt = SessionWarningPreference.defaultPercent
     var state = VitalsState()
     var clickTarget: String?
+    var registeredHooksPath: String?
     var apps: [(identifier: String, name: String)] = []
 
     init(controller: MenuBarController) {
@@ -86,6 +86,7 @@ final class SettingsModel {
         warnAt = controller.sessionWarnAt
         state = controller.state
         clickTarget = ClickTargetPreference.get()
+        registeredHooksPath = controller.registeredHooksPath
     }
 
     /// The apps that are open now, plus a saved choice that is not running — listed anyway, so the
@@ -112,6 +113,7 @@ final class SettingsModel {
             controller.notice("That preference could not be saved.")
         }
         clickTarget = ClickTargetPreference.get()
+        registeredHooksPath = controller.registeredHooksPath
     }
 }
 
@@ -123,7 +125,7 @@ struct SettingsView: View {
             NotifyPage(model: model).tabItem { Label("Notify", systemImage: "bell") }
             CardPage(model: model).tabItem { Label("Card", systemImage: "rectangle.on.rectangle") }
             UsagePage(model: model).tabItem { Label("Usage", systemImage: "gauge.with.dots.needle.67percent") }
-            AdvancedPage().tabItem { Label("Advanced", systemImage: "gearshape.2") }
+            AdvancedPage(model: model).tabItem { Label("Advanced", systemImage: "gearshape.2") }
             AboutPage().tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 520, height: 560)
@@ -286,8 +288,40 @@ private struct UsagePage: View {
 }
 
 private struct AdvancedPage: View {
+    @Bindable var model: SettingsModel
+    @State private var confirmingUnregister = false
+
     var body: some View {
         Form {
+            Section {
+                LabeledContent("Re-register hooks") {
+                    Button("Re-register") {
+                        model.controller.registerHooks(reporting: true)
+                        model.reload()
+                    }
+                }
+                LabeledContent("Unregister hooks") {
+                    Button("Unregister…") { confirmingUnregister = true }
+                }
+            } header: {
+                Text("Claude Code hooks")
+            } footer: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(hookStatus)
+                        .textSelection(.enabled)
+                    Text("Re-register after moving the app. Unregister before moving it to the Bin: a Mac app has no uninstaller to remove its entries from ~/.claude/settings.json.")
+                }
+                .foregroundStyle(.secondary)
+            }
+            .confirmationDialog("Remove BorisCodeStatus from Claude Code's settings?", isPresented: $confirmingUnregister) {
+                Button("Unregister", role: .destructive) {
+                    model.controller.unregisterHooks()
+                    model.reload()
+                }
+            } message: {
+                Text("Only this app's statusLine and hook entries are removed; the rest of ~/.claude/settings.json is left as it is. Opening BorisCodeStatus again registers them again.")
+            }
+
             Section {
                 LabeledContent("Data folder") {
                     Button("Show in Finder") {
@@ -307,6 +341,13 @@ private struct AdvancedPage: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var hookStatus: String {
+        guard let path = model.registeredHooksPath else { return "Not registered." }
+        return FileManager.default.isExecutableFile(atPath: path)
+            ? "Registered: \(path)"
+            : "Registered, but the helper is missing: \(path)"
     }
 }
 
