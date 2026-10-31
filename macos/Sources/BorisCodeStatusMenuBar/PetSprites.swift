@@ -61,6 +61,19 @@ public enum PetSprites {
         }
     }
 
+    /// The card's large portrait for the waiting pose, or nil for the dog, whose portrait
+    /// (`SpriteData.waitingPortrait`) indexes the card palette and blinks its bang, so the card
+    /// draws it separately. `frame` is the goat's `wagFrame`.
+    public static func portrait(_ pet: Pet, frame: Int = 0) -> (grid: [String], palette: [PixelColor])? {
+        switch pet {
+        case .cat: (SpriteData.catPortrait, SpriteData.catPalette)
+        case .bot: (SpriteData.botPortrait, SpriteData.botPalette)
+        case .duck: (SpriteData.duckPortrait, SpriteData.duckPalette)
+        case .goat: (SpriteData.goatPortrait[abs(frame % wagFrames)], SpriteData.goatPalette)
+        case .dog: nil
+        }
+    }
+
     /// Parses a grid character into a palette index: '0'–'9', then 'A' for 10 up to 'F'.
     /// Anything else reads as transparent rather than trapping.
     public static func index(of cell: Character) -> Int {

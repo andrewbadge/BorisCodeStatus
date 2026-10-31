@@ -15,3 +15,6 @@ BorisCodeStatus.Installer/obj/stage/
 # SwiftPM (macos/)
 .build/
 .swiftpm/
+
+# macOS Finder metadata
+.DS_Store
