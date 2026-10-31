@@ -40,6 +40,7 @@ palette defines. Edit both files together.
 | Usage API fallback | **Not included** | On Windows it only runs while the HTTP service is on, because `/status` is the only consumer of `week_sonnet`. Without it there is no reason to read the OAuth token — which on macOS lives in the Keychain and would mean a Keychain access prompt. |
 | Names | **No spaces anywhere** | The hook's path is written into a shell command in `~/.claude/settings.json`. See [Naming](#naming). |
 | Bundle identifier | `au.getboris.BorisCodeStatus` | |
+| Default pet | **The cat** | Windows defaults to the dog. Only the default differs: `settings.json` stores the same `pet` names on both, and every pet is available on both. |
 
 What dropping HTTP and the usage API takes with it: `FirewallGuard`, the *Enable HTTP service*,
 *Use usage API for Sonnet quota*, *Open in browser* and *Fix firewall access…* settings,
@@ -94,7 +95,9 @@ These are rules, not Windows details, and the Mac version keeps every one of the
   currently X".
 - **`~/.claude/settings.json` is read-modify-written, never regenerated.** Backed up once, a
   third-party `statusLine` left alone with a warning, an unparseable file left untouched.
-- **Preferences live in one `settings.json`** whose defaults need no first-run write.
+- **Preferences live in one `settings.json`** whose defaults need no first-run write. The
+  member names match Windows (`AppSettings.swift`, `SettingsStore.swift`, `Preferences.swift`);
+  a member with a bad value falls back to its default on its own rather than resetting the file.
 - **The `state.json` schema stays identical to Windows.** Nothing external reads it on the Mac, but
   keeping it the same lets both implementations share test fixtures (see
   [Keeping the two in step](#keeping-the-two-in-step)).

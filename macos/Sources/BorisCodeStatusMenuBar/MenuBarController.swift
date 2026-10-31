@@ -20,7 +20,9 @@ public final class MenuBarController: NSObject {
     private var watcher: DirectoryWatcher?
     private var poseTimer: Timer?
     private var wagTimer: Timer?
-    private var pet: Pet = .dog
+    /// Read once at startup and kept in step by `setPet`, so a refresh — every state write —
+    /// never touches the disk for it.
+    private var pet = PetPreference.get()
 
     /// What is on screen now, so a refresh that changes nothing visible draws nothing.
     private var rendered: (dog: DogState, bucket: Int, pet: Pet, frame: Int)?
@@ -50,6 +52,16 @@ public final class MenuBarController: NSObject {
         let state = store.state
         updateIcon(state, now: now)
         statusItem.button?.toolTip = Self.tooltip(for: state)
+    }
+
+    /// Which pet. Takes effect at once: the choice is part of the icon's cache key, so the next
+    /// refresh redraws. Returns whether the choice was persisted.
+    @discardableResult
+    public func setPet(_ pet: Pet) -> Bool {
+        guard pet != self.pet else { return true }
+        self.pet = pet
+        refresh(now: Date())
+        return PetPreference.trySet(pet)
     }
 
     private func updateIcon(_ state: VitalsState, now: Date) {

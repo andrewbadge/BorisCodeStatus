@@ -1,6 +1,6 @@
 /// Who keeps you company in the menu bar. Presentation only: the pose rule is the same for every
-/// pet. The dog is the default; choosing another arrives with the settings window.
-public enum Pet: String, CaseIterable, Sendable {
+/// pet. The raw values are the Windows build's names, as `settings.json` stores them.
+public enum Pet: String, CaseIterable, Codable, Sendable {
     case dog = "Dog"
     case cat = "Cat"
     case bot = "Bot"
