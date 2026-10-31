@@ -41,6 +41,30 @@ public enum IconRenderer {
         return image
     }
 
+    /// The bare sprite, no ring, at `cell` points a sprite pixel, with exact 1x and 2x bitmaps —
+    /// for the settings window's pet choices.
+    @MainActor
+    public static func spriteImage(pet: Pet, dog: DogState, cell: Int) -> NSImage {
+        let points = PetSprites.size * cell
+        let image = NSImage(size: NSSize(width: points, height: points))
+        for scale in [1, 2] {
+            let pixels = points * scale
+            guard let context = CGContext(
+                data: nil, width: pixels, height: pixels, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { continue }
+            context.translateBy(x: 0, y: CGFloat(pixels))
+            context.scaleBy(x: 1, y: -1)
+            drawPet(context, pixels: pixels, dog: dog, pet: pet, frame: 0)
+            guard let bitmap = context.makeImage() else { continue }
+            let rep = NSBitmapImageRep(cgImage: bitmap)
+            rep.size = image.size
+            image.addRepresentation(rep)
+        }
+        return image
+    }
+
     /// Renders one bitmap `pixels` square.
     public static func render(dog: DogState, sessionUsedPercentage: Double?, pet: Pet, frame: Int, pixels: Int) -> CGImage? {
         guard let context = CGContext(

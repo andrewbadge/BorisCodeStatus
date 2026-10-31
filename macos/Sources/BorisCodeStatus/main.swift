@@ -8,6 +8,7 @@ import BorisCodeStatusMenuBar
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarController?
+    private var settings: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // One copy only: two would draw two icons and race each other over the same files.
@@ -19,7 +20,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        menuBar = MenuBarController(store: VitalsStateStore.makeDefault())
+        let menuBar = MenuBarController(store: VitalsStateStore.makeDefault())
+        let settings = SettingsWindowController(controller: menuBar)
+        menuBar.onShowSettings = { [weak settings] in settings?.show() }
+        menuBar.onRefresh = { [weak settings] in settings?.refresh() }
+        self.menuBar = menuBar
+        self.settings = settings
     }
 }
 

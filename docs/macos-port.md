@@ -3,13 +3,14 @@
 [← Back to the README](../README.md)
 
 
-**Status: in progress.** Steps 1 to 3 of the [order of work](#order-of-work) exist in
+**Status: in progress.** Steps 1 to 4 of the [order of work](#order-of-work) exist in
 [`macos/`](../macos): the `BorisCodeStatusCore` Swift package, the `BorisCodeStatusHooks` helper,
-the shared fixtures, and a menu-bar app that draws the pet from live state. Nothing registers the
-hooks yet, and there are no cards, sounds or settings window. This page records how the macOS
-version is built, what it deliberately leaves out, and which Windows decisions carry over
-unchanged. As parts ship, they move into the regular docs (`install.md`, `privacy.md`, `tray.md`,
-`known-limitations.md`) and this page shrinks to the reasoning.
+the shared fixtures, a menu-bar app that draws the pet from live state, the waiting, idle,
+status and usage-warning cards, the pets' sounds, and a settings window. Nothing registers the
+hooks yet, and there is no update check. This page records how the macOS version is built, what
+it deliberately leaves out, and which Windows decisions carry over unchanged. As parts ship, they
+move into the regular docs (`install.md`, `privacy.md`, `tray.md`, `known-limitations.md`) and
+this page shrinks to the reasoning.
 
 ```bash
 cd macos
@@ -129,8 +130,24 @@ The **Advanced** page shrinks to repairs:
 - **Unregister hooks** — new; see [Uninstalling](#uninstalling).
 - The location of the error log.
 
-**About** keeps *Check for updates* (`update_check_enabled`, off by default). Notify, Card and
-Usage are unchanged. `http_enabled` and `usage_api_enabled` do not exist on the Mac.
+**About** keeps *Check for updates* (`update_check_enabled`, off by default), but not until step
+6: until a release carries a Mac build, announcing one would send Mac users to an MSI. Notify,
+Card and Usage are unchanged. `http_enabled` and `usage_api_enabled` do not exist on the Mac.
+
+Where the two builds differ in the details:
+
+- **The cards sit top right**, under the menu bar and beside the status item, and stack
+  downward; Windows puts them bottom right beside the tray. A saved status-card position is
+  stored as Windows stores it — the top-left corner, measured down from the top of the main
+  display — and kept on screen when used.
+- **The status card opens from the menu** (*Show Status Card*), because a status item with a
+  menu has no double-click.
+- **A click target is a bundle identifier**, not a process name, and only a running app is
+  brought forward: launching one the user has quit would be a surprise.
+- **There are no balloons.** A preference that could not be saved, or a click target that is not
+  running, is reported on a persistent card instead.
+- **The sounds** are the Windows build's WAV files, copied into `Contents/Resources/Sounds` by
+  `scripts/build-app.sh`, so the repo keeps one copy of each.
 
 ---
 
