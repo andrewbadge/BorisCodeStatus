@@ -42,6 +42,7 @@ palette defines. Edit both files together.
 | Names | **No spaces anywhere** | The hook's path is written into a shell command in `~/.claude/settings.json`. See [Naming](#naming). |
 | Bundle identifier | `au.getboris.BorisCodeStatus` | |
 | Default pet | **The cat** | Windows defaults to the dog. Only the default differs: `settings.json` stores the same `pet` names on both, and every pet is available on both. |
+| Default status card | **Mini, kept on screen** | Windows defaults to neither. The live status is on screen from the first launch; both can be switched off in Settings → Card. |
 
 What dropping HTTP and the usage API takes with it: `FirewallGuard`, the *Enable HTTP service*,
 *Use usage API for Sonnet quota*, *Open in browser* and *Fix firewall access…* settings,

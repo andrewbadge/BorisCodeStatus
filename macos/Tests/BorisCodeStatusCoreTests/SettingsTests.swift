@@ -15,6 +15,8 @@ struct SettingsTests {
         #expect(!UpdateCheckPreference.isEnabled(url: url))
         #expect(PetPreference.get(url: url) == .cat)
         #expect(SessionWarningPreference.get(url: url) == 80)
+        #expect(StatusCardPreference.isPinned(url: url))
+        #expect(StatusCardPreference.isMini(url: url))
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
 

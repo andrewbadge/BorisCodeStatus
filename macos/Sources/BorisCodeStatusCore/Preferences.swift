@@ -81,7 +81,8 @@ public enum SoundPreference {
 }
 
 /// Whether the status card stays on screen, whether it is the mini one, and where the user last
-/// dragged it. All off or absent by default.
+/// dragged it. On the Mac the mini card is kept on screen by default (Windows: both off); the
+/// position is absent until the card is first dragged.
 public enum StatusCardPreference {
     public static func isPinned(url: URL = VitalsPaths.appSettingsFile) -> Bool {
         SettingsStore.load(url: url).statusCardPinned

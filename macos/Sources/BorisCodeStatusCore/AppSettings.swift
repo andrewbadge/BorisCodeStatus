@@ -44,8 +44,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Windows stores a process name under the same key; neither build can use the other's value.
     public var clickTargetApp: String?
 
-    public var statusCardPinned = false
-    public var statusCardMini = false
+    /// On by default on the Mac, so the mini card is on screen from the first launch; off on
+    /// Windows. A deliberate difference between the two builds.
+    public var statusCardPinned = true
+    public var statusCardMini = true
 
     /// Stored as it was left and only kept on screen when it is used, because the displays
     /// present at that point are the ones that matter.
