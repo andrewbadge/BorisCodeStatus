@@ -89,13 +89,10 @@ administrator rights to install. On macOS it is a menu-bar app with no Dock icon
 ### On macOS
 
 The Mac app is native Swift, built from the same design and held to the same rules by shared test
-data, with a smaller surface ([macOS port](docs/macos-port.md) has the reasoning):
+data:
 
 - **The same pets, ring, cards, sounds and settings**, in the menu bar. The cards appear top right,
   under the menu bar, and never take focus.
-- **No HTTP service and no ESP32 relay**, so no listener, no firewall prompt, and no usage-API
-  fallback — it never reads your OAuth token. Its only network call is the opt-in update check.
-- **Different defaults:** the cat, and the mini status card kept on screen. Both are a setting away.
 - **Opens at login** once installed (System Settings → General → Login Items), and registers its
   hooks on every launch. Before deleting the app, use **Settings → Advanced → Unregister hooks**:
   a Mac app has no uninstaller to tidy `~/.claude/settings.json`.
