@@ -37,6 +37,7 @@ public final class MenuBarController: NSObject {
     public private(set) var statusPinned: Bool
     public private(set) var statusMini: Bool
     public private(set) var sessionWarnAt: Int
+    public private(set) var updateCheckOn: Bool
 
     /// What is on screen now, so a refresh that changes nothing visible draws nothing.
     private var rendered: (dog: DogState, bucket: Int, pet: Pet, frame: Int)?
@@ -61,6 +62,12 @@ public final class MenuBarController: NSObject {
     private var statusCard: CardPanel?
     private var usageCard: CardPanel?
     private var noticeCard: CardPanel?
+    private var updateCard: CardPanel?
+
+    /// How often the opt-in update check runs while it is switched on.
+    static let updateCheckInterval: TimeInterval = 6 * 60 * 60
+    private var updateTimer: Timer?
+    private var checkingForUpdate = false
 
     /// Called after any refresh, so an open settings window can show the live state.
     public var onRefresh: (() -> Void)?
@@ -79,6 +86,7 @@ public final class MenuBarController: NSObject {
         statusPinned = settings.statusCardPinned
         statusMini = settings.statusCardMini
         sessionWarnAt = SessionWarningPreference.get()
+        updateCheckOn = settings.updateCheckEnabled
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
@@ -102,6 +110,13 @@ public final class MenuBarController: NSObject {
         poseTimer = Timer.scheduledTimer(withTimeInterval: Self.poseInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh(now: Date()) }
         }
+
+        // Always running, but the check does nothing unless switched on, so enabling it later
+        // needs no restart and disabling it leaves nothing to tear down.
+        updateTimer = Timer.scheduledTimer(withTimeInterval: Self.updateCheckInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkForUpdate() }
+        }
+        checkForUpdate()
     }
 
     public var state: VitalsState { store.state }
@@ -464,6 +479,62 @@ public final class MenuBarController: NSObject {
         let card = CardPanel()
         card.onClick = onClick
         return card
+    }
+
+    // MARK: - Update check
+
+    /// Asks GitHub for the latest release and, if it has a Mac download, is newer than this copy
+    /// and has not been announced yet, shows the update card. Does nothing unless switched on; one
+    /// request at a time. A failed request is silent — the next tick tries again.
+    private func checkForUpdate() {
+        guard updateCheckOn, !checkingForUpdate else { return }
+        checkingForUpdate = true
+
+        Task { @MainActor [weak self] in
+            let latest = await UpdateChecker.latestMacRelease()
+            guard let self else { return }
+            self.checkingForUpdate = false
+
+            // The user may have switched the check off meanwhile.
+            guard self.updateCheckOn, let latest, UpdateChecker.isNewer(latest, than: Self.version) else { return }
+
+            let announced = latest.description
+            guard UpdateCheckPreference.notifiedVersion() != announced else { return }
+
+            // Recorded first: if it cannot be saved the card still shows, at worst again next start.
+            UpdateCheckPreference.trySetNotifiedVersion(announced)
+            self.showUpdateCard(announced)
+        }
+    }
+
+    /// Persistent like the usage warning: an update is easy to dismiss unread if it fades.
+    private func showUpdateCard(_ version: String) {
+        let card = updateCard ?? {
+            let card = makeCard()
+            card.persistent = true
+            card.linkText = "Releases"
+            card.onLink = { NSWorkspace.shared.open(UpdateChecker.releasesPageURL) }
+            return card
+        }()
+        updateCard = card
+        card.pet = pet
+        card.show(CardContent(
+            state: "Update",
+            accent: CardContent.accent(for: .working),
+            title: "v\(version) is out",
+            detail: "You are running v\(Self.version). The new release is on GitHub.",
+            hint: nil,
+            dog: .idle,
+            gauge: 0
+        ))
+    }
+
+    /// Switching on checks at once, so the choice is confirmed by the result.
+    public func setUpdateCheck(_ on: Bool) {
+        updateCheckOn = on
+        save(UpdateCheckPreference.trySetEnabled(on))
+        checkForUpdate()
+        onRefresh?()
     }
 
     // MARK: - Hooks

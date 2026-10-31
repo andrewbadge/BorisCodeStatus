@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The settings window the menu's **Settings…** opens: Notify, Card, Usage, Advanced and About, as
 /// on Windows, less what the Mac build does not have (the HTTP service, the usage API and the
-/// firewall). The update check arrives with the Mac release, step 6 of docs/macos-port.md.
+/// firewall).
 ///
 /// It owns no state. Every value is read from `MenuBarController`, and every control calls it, so
 /// the menu bar and the cards change at once and the file write happens in one place.
@@ -68,6 +68,7 @@ final class SettingsModel {
     var clickTarget: String?
     var registeredHooksPath: String?
     var openAtLogin = false
+    var updateCheckOn = false
     var loginNeedsApproval = false
     var apps: [(identifier: String, name: String)] = []
 
@@ -90,6 +91,7 @@ final class SettingsModel {
         clickTarget = ClickTargetPreference.get()
         registeredHooksPath = controller.registeredHooksPath
         openAtLogin = LoginItem.isEnabled
+        updateCheckOn = controller.updateCheckOn
         loginNeedsApproval = LoginItem.needsApproval
     }
 
@@ -138,7 +140,7 @@ struct SettingsView: View {
             CardPage(model: model).tabItem { Label("Card", systemImage: "rectangle.on.rectangle") }
             UsagePage(model: model).tabItem { Label("Usage", systemImage: "gauge.with.dots.needle.67percent") }
             AdvancedPage(model: model).tabItem { Label("Advanced", systemImage: "gearshape.2") }
-            AboutPage().tabItem { Label("About", systemImage: "info.circle") }
+            AboutPage(model: model).tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 520, height: 560)
         .padding(.top, 8)
@@ -375,18 +377,30 @@ private struct AdvancedPage: View {
 }
 
 private struct AboutPage: View {
+    @Bindable var model: SettingsModel
+
     var body: some View {
         Form {
+            Section {
+                Toggle("Check for updates", isOn: Binding(
+                    get: { model.updateCheckOn },
+                    set: { model.controller.setUpdateCheck($0); model.reload() }
+                ))
+            } footer: {
+                Text("Asks GitHub every 6 hours, and only announces a release with a Mac download. Off by default.")
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 LabeledContent("Version", value: "v\(MenuBarController.version)")
                 LabeledContent("Source") {
                     Button("Open on GitHub") { NSWorkspace.shared.open(MenuBarController.repositoryURL) }
                 }
                 LabeledContent("Releases") {
-                    Button("Open") { NSWorkspace.shared.open(MenuBarController.repositoryURL.appending(path: "releases")) }
+                    Button("Open") { NSWorkspace.shared.open(UpdateChecker.releasesPageURL) }
                 }
             } footer: {
-                Text("Free software under the GPL-3.0-or-later. No telemetry, and no network calls at all.")
+                Text("Free software under the GPL-3.0-or-later. No telemetry. The update check is the only network call, and only when switched on.")
                     .foregroundStyle(.secondary)
             }
         }

@@ -7,7 +7,8 @@
 [`macos/`](../macos): the `BorisCodeStatusCore` Swift package, the `BorisCodeStatusHooks` helper,
 the shared fixtures, a menu-bar app that draws the pet from live state, the waiting, idle,
 status and usage-warning cards, the pets' sounds, a settings window, hook registration and
-Open at Login. There is no signing, notarisation or update check yet. This page records how the macOS version is built, what
+Open at Login, and the opt-in update check. Signing, notarisation and a Mac release are not
+done yet. This page records how the macOS version is built, what
 it deliberately leaves out, and which Windows decisions carry over unchanged. As parts ship, they
 move into the regular docs (`install.md`, `privacy.md`, `tray.md`, `known-limitations.md`) and
 this page shrinks to the reasoning.
@@ -131,8 +132,10 @@ The **Advanced** page shrinks to repairs:
 - **Unregister hooks** — new; see [Uninstalling](#uninstalling).
 - The location of the error log.
 
-**About** keeps *Check for updates* (`update_check_enabled`, off by default), but not until step
-6: until a release carries a Mac build, announcing one would send Mac users to an MSI. Notify,
+**About** keeps *Check for updates* (`update_check_enabled`, off by default). It announces a
+release only if it carries a Mac download named `BorisCodeStatus-<version>-macOS.dmg`: the same tag
+ships both builds, and a Windows-only release would send Mac users to an MSI. Until the Release
+workflow attaches one, the check finds nothing to announce. Notify,
 Card and Usage are unchanged. `http_enabled` and `usage_api_enabled` do not exist on the Mac.
 
 Where the two builds differ in the details:
