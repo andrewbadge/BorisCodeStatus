@@ -172,7 +172,7 @@ Two moments, each with three independent settings:
   one still playing.
 - Picking a sound, or switching a sound on, plays it immediately. Switching a card on shows one.
 - The sound choice is kept per moment and per pet, so switching pets keeps every choice.
-- **Sounds** are four 16-bit PCM WAV recordings made for the project, embedded in the tray
+- **Sounds** are 16-bit PCM WAV recordings kept in `shared/sounds`, embedded in the tray
   assembly and played with `System.Media.SoundPlayer`.
 
 **When notification is clicked** applies to the waiting and idle cards. **Just dismiss** (the
@@ -222,6 +222,15 @@ written until the user first changes a setting. A file that will not parse is co
 | `pet` | `Dog`, `Cat`, `Bot`, `Duck` or `Goat` | `Dog` |
 | `update_check_enabled` | Ask GitHub every 6 hours for a newer release | `false` |
 | `update_notified_version` | Newest release already announced, so it is announced once | `null` |
+
+The macOS build ([`macos-port.md`](macos-port.md)) keeps the same file in
+`~/Library/Application Support/BorisCodeStatus/`, with these differences: no `http_enabled` or
+`usage_api_enabled`; `pet` defaults to `Cat`; `status_card_pinned` and `status_card_mini`
+default to `true`; `click_target_app` is a bundle identifier; and one member of its own:
+
+| Member | Meaning | Default |
+|---|---|---|
+| `login_item_set_up` | Open at Login has been turned on once, by the first launch of an installed copy, so a later launch does not turn it back on | `false` |
 
 Versions before 1.7 kept each preference in a file of its own (`http-enabled.flag`,
 `pet.txt`, …). The first start of 1.7 imports them into `settings.json` and deletes them.

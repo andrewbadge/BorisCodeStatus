@@ -1,0 +1,157 @@
+{
+  "_comment": "Pose and session-status cases shared by the C# and Swift tests. Each case is judged at 'now'.",
+  "now": "2026-10-31T12:00:00Z",
+  "cases": [
+    {
+      "name": "No event yet is unknown and asleep",
+      "state": {
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Unknown",
+      "dog": "Sleeping"
+    },
+    {
+      "name": "Working in an open session",
+      "state": {
+        "activity": "Working",
+        "activity_changed_utc": "2026-10-31T11:59:00Z",
+        "last_event_utc": "2026-10-31T11:59:00Z",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Active",
+      "dog": "Working"
+    },
+    {
+      "name": "Waiting in an open session",
+      "state": {
+        "activity": "Waiting",
+        "activity_changed_utc": "2026-10-31T11:59:00Z",
+        "last_event_utc": "2026-10-31T11:59:00Z",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Active",
+      "dog": "Waiting"
+    },
+    {
+      "name": "Idle for two minutes is awake",
+      "state": {
+        "activity": "Idle",
+        "activity_changed_utc": "2026-10-31T11:58:00Z",
+        "last_event_utc": "2026-10-31T11:58:00Z",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Active",
+      "dog": "Idle"
+    },
+    {
+      "name": "Idle just under five minutes is awake",
+      "state": {
+        "activity": "Idle",
+        "activity_changed_utc": "2026-10-31T11:55:01Z",
+        "last_event_utc": "2026-10-31T11:55:01Z",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Active",
+      "dog": "Idle"
+    },
+    {
+      "name": "Idle exactly five minutes falls asleep",
+      "state": {
+        "activity": "Idle",
+        "activity_changed_utc": "2026-10-31T11:55:00Z",
+        "last_event_utc": "2026-10-31T11:55:00Z",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Active",
+      "dog": "Sleeping"
+    },
+    {
+      "name": "Idle with no change time is asleep",
+      "state": {
+        "activity": "Idle",
+        "last_event_utc": "2026-10-31T11:59:00Z",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Active",
+      "dog": "Sleeping"
+    },
+    {
+      "name": "Exactly fifteen quiet minutes is still active",
+      "state": {
+        "activity": "Working",
+        "activity_changed_utc": "2026-10-31T11:45:00Z",
+        "last_event_utc": "2026-10-31T11:45:00Z",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Active",
+      "dog": "Working"
+    },
+    {
+      "name": "Past fifteen quiet minutes is inactive and asleep",
+      "state": {
+        "activity": "Working",
+        "activity_changed_utc": "2026-10-31T11:44:59Z",
+        "last_event_utc": "2026-10-31T11:44:59Z",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Inactive",
+      "dog": "Sleeping"
+    },
+    {
+      "name": "SessionEnd at the same instant as the last event wins",
+      "state": {
+        "activity": "Idle",
+        "activity_changed_utc": "2026-10-31T11:59:00Z",
+        "last_event_utc": "2026-10-31T11:59:00Z",
+        "session_ended_utc": "2026-10-31T11:59:00Z",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Ended",
+      "dog": "Sleeping"
+    },
+    {
+      "name": "An event after SessionEnd reopens the session",
+      "state": {
+        "activity": "Working",
+        "activity_changed_utc": "2026-10-31T11:59:00Z",
+        "last_event_utc": "2026-10-31T11:59:00Z",
+        "session_ended_utc": "2026-10-31T11:57:00Z",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Active",
+      "dog": "Working"
+    },
+    {
+      "name": "Unknown activity in an open session is asleep",
+      "state": {
+        "activity": "Unknown",
+        "last_event_utc": "2026-10-31T11:59:00Z",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Active",
+      "dog": "Sleeping"
+    },
+    {
+      "name": "Seven-digit .NET timestamps are read",
+      "state": {
+        "activity": "Working",
+        "activity_changed_utc": "2026-10-31T11:58:00.1234567+00:00",
+        "last_event_utc": "2026-10-31T11:58:00.1234567+00:00",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Active",
+      "dog": "Working"
+    },
+    {
+      "name": "A non-UTC offset is read as the same instant",
+      "state": {
+        "activity": "Idle",
+        "activity_changed_utc": "2026-10-31T23:58:00+11:00",
+        "last_event_utc": "2026-10-31T23:58:00+11:00",
+        "last_updated_utc": "2026-10-31T12:00:00Z"
+      },
+      "session_status": "Active",
+      "dog": "Idle"
+    }
+  ]
+}

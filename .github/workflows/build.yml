@@ -27,6 +27,7 @@ concurrency:
 
 jobs:
   build:
+    name: Windows
     # Windows is not a preference here: the tray app targets net10.0-windows and WiX only runs on Windows.
     runs-on: windows-latest
 
@@ -34,6 +35,12 @@ jobs:
     # the Release workflow's job, and it asks for contents: write there instead.
     permissions:
       contents: read
+
+    # The .NET solution lives in windows/; Directory.Build.props, the version for both builds, stays
+    # at the repo root, where MSBuild finds it by walking up.
+    defaults:
+      run:
+        working-directory: windows
 
     steps:
       - uses: actions/checkout@v7
@@ -102,3 +109,52 @@ jobs:
           }
 
           Write-Host "MSI verified: $($files.Count) files, per-user scope"
+
+  macos:
+    name: macOS
+    # The Swift port in macos/. Builds and tests every target, then assembles the ad-hoc signed
+    # .app to prove the bundle still comes together. Nothing is uploaded or signed for release:
+    # Developer ID signing and notarisation belong to the Release workflow (docs/macos-port.md).
+    runs-on: macos-15
+
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        working-directory: macos
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # swift-testing's macros need Xcode, not the Command Line Tools.
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer && swift --version
+
+      - name: Test
+        run: swift test
+
+      - name: Build the app bundle
+        run: scripts/build-app.sh
+
+      - name: Verify the bundle looks right
+        run: |
+          app=.build/BorisCodeStatus.app
+          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' ../Directory.Build.props | head -n 1)
+          test -x "$app/Contents/MacOS/BorisCodeStatus"
+          test -x "$app/Contents/Helpers/BorisCodeStatusHooks"
+          test "$(ls "$app/Contents/Resources/Sounds"/*.wav | wc -l)" -eq "$(ls ../shared/sounds/*.wav | wc -l)"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version"
+          archs=$(lipo -archs "$app/Contents/MacOS/BorisCodeStatus")
+          case " $archs " in *" arm64 "*) ;; *) echo "arm64 missing: $archs"; exit 1 ;; esac
+          case " $archs " in *" x86_64 "*) ;; *) echo "x86_64 missing: $archs"; exit 1 ;; esac
+          codesign --verify --deep --strict "$app"
+          echo "Bundle verified: version $version, universal, sounds present"
+
+      # The release download, under the name the app's update check looks for. Ad-hoc signed here,
+      # so it is not uploaded: only the Release workflow's notarised one is fit to hand out.
+      - name: Package the .dmg
+        run: |
+          scripts/package-dmg.sh
+          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' ../Directory.Build.props | head -n 1)
+          test -f ".build/BorisCodeStatus-$version-macOS.dmg"

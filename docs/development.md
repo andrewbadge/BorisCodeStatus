@@ -7,10 +7,16 @@ Requires the .NET 10 SDK and the WiX v4 CLI:
 
 ```bash
 dotnet tool install --global wix --version 4.0.5
+cd windows
 dotnet build -c Release
 ```
 
-A Release build of the solution produces `BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi` as a
+The solution and its projects are in `windows/`; every `dotnet` command below runs from there.
+`Directory.Build.props`, which carries the version, stays at the repo root, where MSBuild finds it
+by walking up. The waiting sounds and the shared test fixtures are in the repo-root `shared/`, which
+the macOS build in `macos/` uses too.
+
+A Release build of the solution produces `windows\BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi` as a
 normal build output — no separate packaging step.
 
 > **WiX version:** pinned to **4.0.5**. WiX v7 requires accepting the Open Source Maintenance Fee
@@ -26,8 +32,11 @@ dotnet test BorisCodeStatus.Core.Tests
 ### Continuous integration
 
 `.github/workflows/build.yml` builds and tests on every push to `main` and every pull request into
-`main`. It builds and verifies the MSI too, so a broken installer fails the PR rather than the
-release, but does not upload it — nothing uses a CI build's MSI. It never publishes a release.
+`main`, in two jobs. **Windows** builds and verifies the MSI too, so a broken installer fails the
+PR rather than the release, but does not upload it — nothing uses a CI build's MSI. **macOS** runs
+`swift test` and assembles the ad-hoc signed `.app`, checking it is universal, carries the version
+from `Directory.Build.props` and has every sound; nothing is uploaded or notarised. It never
+publishes a release.
 
 Pushing repeatedly to a PR cancels the superseded run, so a burst of commits costs one build rather
 than several. Runs on `main` are never cancelled, so every merged commit keeps its own result.
@@ -43,8 +52,18 @@ move together, which a single package bump would break.
 ### Publishing a release
 
 `.github/workflows/release.yml` is **run manually**: Actions → Release → *Run workflow*. It builds,
-tests, verifies and publishes in one go, creating the tag itself so the tag and the MSI can never
-disagree.
+tests, verifies and publishes in one go, creating the tag itself so the tag and the downloads can
+never disagree. One run makes one release for every platform, in jobs:
+
+| Job | Runs on | Does |
+|---|---|---|
+| `version` | Ubuntu | Reads and checks the version and tag (below), before anything is built |
+| `windows` | Windows | Restores, tests, builds and verifies the MSI; uploads `BorisCodeStatus-<version>.msi` |
+| `macos` | macOS | *Not yet:* builds, signs with a Developer ID and notarises `BorisCodeStatus-<version>-macOS.dmg`. Waits on the signing credentials; see [macOS port](macos-port.md) |
+| `publish` | Ubuntu | Runs only once every platform job has passed; creates the tag and the release with all the downloads attached |
+
+A failure in any platform job publishes nothing, so a release never carries one build without the
+other — which the macOS update check relies on.
 
 **The version is not an input.** It comes from `<Version>` in `Directory.Build.props` — the same
 value stamped onto every assembly and shown in the tray menu — so a published release can never

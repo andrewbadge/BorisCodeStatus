@@ -1,0 +1,29 @@
+{
+  "session": {
+    "used_percentage": 31,
+    "resets_at": "2026-10-31T15:00:00+00:00",
+    "resets_in_minutes": 828
+  },
+  "week": {
+    "used_percentage": 12.5,
+    "resets_at": "2026-11-04T09:00:00+00:00",
+    "resets_in_minutes": 6228
+  },
+  "week_sonnet": null,
+  "context_used_percentage": 42.5,
+  "model_display_name": "Opus 5.5",
+  "session_id": "abc",
+  "session_name": "fix-the-build",
+  "session_cost_usd": 1.25,
+  "session_duration_ms": 61000,
+  "month_cost_usd": null,
+  "activity": "Waiting",
+  "activity_changed_utc": "2026-10-31T11:58:00.1234567+00:00",
+  "waiting_message": "Claude needs your permission to use Bash",
+  "last_event_utc": "2026-10-31T11:58:00.1234567+00:00",
+  "session_ended_utc": null,
+  "session_status": "Active",
+  "last_updated_utc": "2026-10-31T11:58:00.1234567+00:00",
+  "usage_api_last_success_utc": null,
+  "age_seconds": 0
+}

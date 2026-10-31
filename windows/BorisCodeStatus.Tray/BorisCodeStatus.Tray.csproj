@@ -36,9 +36,10 @@
 
   <ItemGroup>
     <!-- The waiting sounds, embedded rather than copied: the MSI harvests the output folder, and
-         a resource cannot be left behind or deleted from the install. By freesound_community on
+         a resource cannot be left behind or deleted from the install. They live in the repo-root
+         shared/sounds, which the macOS build copies into its bundle too. By freesound_community on
          Pixabay, under the Pixabay Content License - see Third-party components in docs/license.md. -->
-    <EmbeddedResource Include="Sounds\*.wav" LogicalName="Sounds.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\shared\sounds\*.wav" LogicalName="Sounds.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

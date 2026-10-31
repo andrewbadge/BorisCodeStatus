@@ -20,7 +20,7 @@ The MSI bundles components that are not covered by this project's license:
 |---|---|---|
 | .NET runtime and ASP.NET Core | MIT | Self-contained in both executables |
 | WiX Toolset v4 utility custom action (`Wix4UtilCA`) | MS-RL | Inside the MSI, used to close and launch the tray during install |
-| Notification sounds, by [freesound_community](https://pixabay.com/users/freesound_community-46691455/) on Pixabay | [Pixabay Content License](https://pixabay.com/service/license-summary/) | Embedded in `BorisCodeStatus.Tray.exe` (`BorisCodeStatus.Tray/Sounds`) |
+| Notification sounds, by [freesound_community](https://pixabay.com/users/freesound_community-46691455/) on Pixabay | [Pixabay Content License](https://pixabay.com/service/license-summary/) | Kept in `shared/sounds`; embedded in `BorisCodeStatus.Tray.exe` and copied into the macOS app bundle |
 
 The WiX custom action runs only during installation and is not linked into the program. The test
 suite additionally uses xUnit (Apache 2.0) and coverlet (MIT) at build time; neither ships.

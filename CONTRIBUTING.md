@@ -27,9 +27,12 @@ You need the .NET 10 SDK and the WiX v4 CLI. WiX is pinned to 4.0.5 on purpose â
 
 ```bash
 dotnet tool install --global wix --version 4.0.5
+cd windows
 dotnet build -c Release
 dotnet test BorisCodeStatus.Core.Tests
 ```
+
+The macOS port builds separately, from `macos/` â€” see [macOS port](docs/macos-port.md).
 
 > **Running a development build rewrites your real `~/.claude/settings.json`.** The tray registers
 > whatever path it is running from, so a `bin\Debug\...` hook path can end up in your global
@@ -40,7 +43,8 @@ so tests do not pass one day and fail the next.
 
 ## Pull requests
 
-- `dotnet test` must pass; CI runs it on every pull request into `main`.
+- `dotnet test` (in `windows/`) and, for changes to `macos/` or `shared/`, `swift test` (in
+  `macos/`) must pass; CI runs both on every pull request into `main`.
 - **Keep the README and `docs/` current in the same pull request.** They document behaviour, the `/status`
   payload and the release process, and are expected to match the code.
 - **Update [Privacy](docs/privacy.md)

@@ -10,4 +10,11 @@
 *.suo
 
 # WiX harvesting intermediates
-BorisCodeStatus.Installer/obj/stage/
+windows/BorisCodeStatus.Installer/obj/stage/
+
+# SwiftPM (macos/)
+.build/
+.swiftpm/
+
+# macOS Finder metadata
+.DS_Store
