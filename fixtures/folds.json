@@ -1,0 +1,202 @@
+{
+  "_comment": "Hook sequences folded from an empty state, shared by the C# and Swift tests. Only fields that do not depend on the clock are compared.",
+  "cases": [
+    {
+      "name": "statusLine fills usage figures",
+      "steps": [
+        {
+          "verb": "statusline",
+          "payload": {
+            "session_id": "abc",
+            "session_name": "fix-the-build",
+            "model": {
+              "display_name": "Opus 5.5",
+              "id": "claude-opus-5-5"
+            },
+            "cost": {
+              "total_cost_usd": 1.25,
+              "total_duration_ms": 61000
+            },
+            "context_window": {
+              "used_percentage": 42.5
+            },
+            "rate_limits": {
+              "five_hour": {
+                "used_percentage": 31,
+                "resets_at": "2026-10-31T15:00:00Z"
+              },
+              "seven_day": {
+                "used_percentage": 12.5,
+                "resets_at": 1793500000
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "session_id": "abc",
+        "session_name": "fix-the-build",
+        "model_display_name": "Opus 5.5",
+        "session_cost_usd": 1.25,
+        "session_duration_ms": 61000,
+        "context_used_percentage": 42.5,
+        "session_used_percentage": 31,
+        "week_used_percentage": 12.5,
+        "activity": "Unknown",
+        "waiting_message": null
+      }
+    },
+    {
+      "name": "A statusLine without rate_limits keeps the previous figures",
+      "steps": [
+        {
+          "verb": "statusline",
+          "payload": {
+            "rate_limits": {
+              "five_hour": {
+                "used_percentage": 31
+              },
+              "seven_day": {
+                "used_percentage": 12
+              }
+            }
+          }
+        },
+        {
+          "verb": "statusline",
+          "payload": {
+            "model": {
+              "display_name": "Sonnet 5.5"
+            },
+            "session_id": "   "
+          }
+        }
+      ],
+      "expected": {
+        "session_id": null,
+        "model_display_name": "Sonnet 5.5",
+        "session_used_percentage": 31,
+        "week_used_percentage": 12,
+        "activity": "Unknown"
+      }
+    },
+    {
+      "name": "Notification waits and keeps its message",
+      "steps": [
+        {
+          "verb": "userpromptsubmit",
+          "payload": {
+            "session_id": "s1"
+          }
+        },
+        {
+          "verb": "notification",
+          "payload": {
+            "hook_event_name": "Notification",
+            "message": "Claude needs your permission to use Bash"
+          }
+        }
+      ],
+      "expected": {
+        "session_id": "s1",
+        "activity": "Waiting",
+        "waiting_message": "Claude needs your permission to use Bash"
+      }
+    },
+    {
+      "name": "Leaving Waiting clears the message",
+      "steps": [
+        {
+          "verb": "notification",
+          "payload": {
+            "message": "Claude needs your permission to use Bash"
+          }
+        },
+        {
+          "verb": "PreToolUse",
+          "payload": {
+            "tool_name": "Bash"
+          }
+        }
+      ],
+      "expected": {
+        "activity": "Working",
+        "waiting_message": null
+      }
+    },
+    {
+      "name": "Stop goes idle",
+      "steps": [
+        {
+          "verb": "pretooluse",
+          "payload": {}
+        },
+        {
+          "verb": "stop",
+          "payload": {}
+        }
+      ],
+      "expected": {
+        "activity": "Idle",
+        "waiting_message": null
+      }
+    },
+    {
+      "name": "Session hooks leave activity alone",
+      "steps": [
+        {
+          "verb": "stop",
+          "payload": {}
+        },
+        {
+          "verb": "sessionend",
+          "payload": {
+            "session_id": "s2"
+          }
+        }
+      ],
+      "expected": {
+        "session_id": "s2",
+        "activity": "Idle",
+        "session_ended": true
+      }
+    },
+    {
+      "name": "SessionStart clears a previous end",
+      "steps": [
+        {
+          "verb": "sessionend",
+          "payload": {}
+        },
+        {
+          "verb": "sessionstart",
+          "payload": {}
+        }
+      ],
+      "expected": {
+        "activity": "Unknown",
+        "session_ended": false
+      }
+    },
+    {
+      "name": "Malformed and unknown input changes nothing",
+      "steps": [
+        {
+          "verb": "statusline",
+          "payload": "{not json"
+        },
+        {
+          "verb": "bark",
+          "payload": {
+            "session_id": "x"
+          }
+        }
+      ],
+      "expected": {
+        "session_id": null,
+        "activity": "Unknown",
+        "session_used_percentage": null
+      }
+    }
+  ]
+}

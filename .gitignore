@@ -11,3 +11,7 @@
 
 # WiX harvesting intermediates
 BorisCodeStatus.Installer/obj/stage/
+
+# SwiftPM (macos/)
+.build/
+.swiftpm/

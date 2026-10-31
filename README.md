@@ -125,6 +125,7 @@ make an HTTP `GET` and parse JSON can consume `/status`.
 | [Development](docs/development.md) | Building, CI, dependency updates, publishing a release, testing hooks, design notes |
 | [Spec](docs/SPECS.md) | The behaviour spec |
 | [Known limitations](docs/known-limitations.md) | What it cannot do, and why |
+| [macOS port](docs/macos-port.md) | Proposal for a native Swift menu-bar version, without the HTTP service |
 | [License](docs/license.md) | GPL-3.0-or-later, third-party components, trademarks |
 
 Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md), the
