@@ -52,8 +52,18 @@ move together, which a single package bump would break.
 ### Publishing a release
 
 `.github/workflows/release.yml` is **run manually**: Actions → Release → *Run workflow*. It builds,
-tests, verifies and publishes in one go, creating the tag itself so the tag and the MSI can never
-disagree.
+tests, verifies and publishes in one go, creating the tag itself so the tag and the downloads can
+never disagree. One run makes one release for every platform, in jobs:
+
+| Job | Runs on | Does |
+|---|---|---|
+| `version` | Ubuntu | Reads and checks the version and tag (below), before anything is built |
+| `windows` | Windows | Restores, tests, builds and verifies the MSI; uploads `BorisCodeStatus-<version>.msi` |
+| `macos` | macOS | *Not yet:* builds, signs with a Developer ID and notarises `BorisCodeStatus-<version>-macOS.dmg`. Waits on the signing credentials; see [macOS port](macos-port.md) |
+| `publish` | Ubuntu | Runs only once every platform job has passed; creates the tag and the release with all the downloads attached |
+
+A failure in any platform job publishes nothing, so a release never carries one build without the
+other — which the macOS update check relies on.
 
 **The version is not an input.** It comes from `<Version>` in `Directory.Build.props` — the same
 value stamped onto every assembly and shown in the tray menu — so a published release can never

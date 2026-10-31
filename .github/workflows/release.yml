@@ -1,6 +1,6 @@
 name: Release
 
-# Publishes a GitHub Release with the MSI attached. Run manually from the Actions tab:
+# Publishes a GitHub Release with the downloads attached. Run manually from the Actions tab:
 # Actions -> Release -> "Run workflow".
 #
 # Releasing is deliberately a manual, deliberate act rather than something a tag push triggers as
@@ -27,34 +27,27 @@ on:
 permissions:
   contents: read
 
+# One run, one release: each platform builds and verifies its own download, and publish attaches
+# them all to a single tag only after every platform job has passed, so a release can never carry
+# one build without the other.
+#
+#   version ─┬─ windows ─┬─ publish
+#            └─ macos  ──┘          (macOS: not yet — it needs the Developer ID signing secrets;
+#                                    see docs/macos-port.md. Add it to publish's needs when it lands.)
 jobs:
-  release:
-    # Windows is not a preference: the tray targets net10.0-windows and WiX only runs on Windows.
-    runs-on: windows-latest
+  version:
+    # Decides the version and checks the tag before anything is built, so a bad version fails in
+    # seconds rather than after both builds.
+    runs-on: ubuntu-latest
 
-    permissions:
-      contents: write # Create the tag and the release.
-
-    # The .NET solution lives in windows/; Directory.Build.props, the version for both builds, stays
-    # at the repo root, where MSBuild finds it by walking up.
-    defaults:
-      run:
-        working-directory: windows
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # Needed to see existing tags for the ordering check below.
-
-      - name: Set up .NET 10
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: '10.0.x'
-
-      # Pinned to 4.0.5: WiX v7 refuses to run without accepting the Open Source Maintenance Fee
-      # EULA, which is a licensing decision rather than a technical one.
-      - name: Install WiX v4
-        run: dotnet tool install --global wix --version 4.0.5
 
       - name: Read version from Directory.Build.props
         id: version
@@ -62,7 +55,7 @@ jobs:
         run: |
           # The single source of truth: this same value is stamped onto every assembly and is what
           # the tray menu displays, so a release can never claim a version the app disagrees with.
-          $props = '../Directory.Build.props'
+          $props = 'Directory.Build.props'
           $raw = ([xml](Get-Content $props)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
 
           if (-not $raw) {
@@ -120,6 +113,31 @@ jobs:
           "tag=$tag" >> $env:GITHUB_OUTPUT
           Write-Host "Releasing $tag"
 
+  windows:
+    needs: version
+
+    # Windows is not a preference: the tray targets net10.0-windows and WiX only runs on Windows.
+    runs-on: windows-latest
+
+    # The .NET solution lives in windows/; Directory.Build.props, the version for both builds, stays
+    # at the repo root, where MSBuild finds it by walking up.
+    defaults:
+      run:
+        working-directory: windows
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      # Pinned to 4.0.5: WiX v7 refuses to run without accepting the Open Source Maintenance Fee
+      # EULA, which is a licensing decision rather than a technical one.
+      - name: Install WiX v4
+        run: dotnet tool install --global wix --version 4.0.5
+
       - name: Restore
         run: dotnet restore
 
@@ -161,7 +179,7 @@ jobs:
             $rows
           }
 
-          $expected = '${{ steps.version.outputs.version }}'
+          $expected = '${{ needs.version.outputs.version }}'
           $properties = Invoke-MsiQuery "SELECT ``Property``, ``Value`` FROM ``Property``" 2
           $actual = ($properties | Where-Object { $_ -like 'ProductVersion|*' }) -replace '^ProductVersion\|', ''
           if ($actual -ne $expected) { throw "MSI ProductVersion is '$actual', expected '$expected'" }
@@ -179,17 +197,49 @@ jobs:
 
           Write-Host "MSI verified: version $actual, $($files.Count) files, per-user scope"
 
+      # Named after the version so downloads stay distinguishable once saved.
+      - name: Name the MSI for the release
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force upload | Out-Null
+          Copy-Item "BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi" "upload\BorisCodeStatus-${{ needs.version.outputs.version }}.msi"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: windows/upload/
+          if-no-files-found: error
+
+  publish:
+    needs: [version, windows]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Create the tag and the release.
+
+    steps:
+      # Checked out only so gh has a repository to work in; nothing is built here.
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloads
+          merge-multiple: true
+
       - name: Publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $version = '${{ steps.version.outputs.version }}'
-          $tag = '${{ steps.version.outputs.tag }}'
+          $version = '${{ needs.version.outputs.version }}'
+          $tag = '${{ needs.version.outputs.tag }}'
 
-          # Name the asset after the version so downloads stay distinguishable once saved.
-          $asset = "BorisCodeStatus-$version.msi"
-          Copy-Item "BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi" $asset
+          # Every platform job uploads its download already named for the release; each one found
+          # here is attached. The windows job's MSI is required (publish needs it); the macOS .dmg
+          # joins this list once that job exists.
+          $assets = @(Get-ChildItem downloads -File | ForEach-Object { $_.FullName })
+          if (-not ($assets | Where-Object { $_ -like '*.msi' })) { throw "No MSI was downloaded" }
+          $msi = "BorisCodeStatus-$version.msi"
 
           # Built as an array rather than a here-string: PowerShell treats a backtick as an escape
           # character, so markdown code spans inside a here-string would be silently mangled.
@@ -197,7 +247,7 @@ jobs:
           $notes = @(
             'Per-user Windows installer for BorisCodeStatus.',
             '',
-            "**Install:** run $asset. No administrator rights are required - it installs under",
+            "**Install:** run $msi. No administrator rights are required - it installs under",
             'your local app data, starts at login via an HKCU Run key, and registers its Claude Code',
             'hooks on first launch.',
             '',
@@ -217,11 +267,11 @@ jobs:
 
           # gh creates the tag at the checked-out commit, so there is no separate tag push to get
           # out of step with the release.
-          $arguments = @($tag, $asset, '--title', $tag, '--notes-file', 'release-notes.md', '--target', $env:GITHUB_SHA)
+          $arguments = @($tag) + $assets + @('--title', $tag, '--notes-file', 'release-notes.md', '--target', $env:GITHUB_SHA)
           if ('${{ github.event.inputs.prerelease }}' -eq 'true') { $arguments += '--prerelease' }
 
           gh release create @arguments
 
           "### Released $tag" >> $env:GITHUB_STEP_SUMMARY
           "" >> $env:GITHUB_STEP_SUMMARY
-          "Asset: $asset" >> $env:GITHUB_STEP_SUMMARY
+          foreach ($file in $assets) { "- $(Split-Path $file -Leaf)" >> $env:GITHUB_STEP_SUMMARY }
