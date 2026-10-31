@@ -8,6 +8,7 @@ let package = Package(
     products: [
         .library(name: "BorisCodeStatusCore", targets: ["BorisCodeStatusCore"]),
         .executable(name: "BorisCodeStatusHooks", targets: ["BorisCodeStatusHooks"]),
+        .executable(name: "BorisCodeStatus", targets: ["BorisCodeStatus"]),
     ],
     targets: [
         .target(name: "BorisCodeStatusCore"),
@@ -15,12 +16,25 @@ let package = Package(
             name: "BorisCodeStatusHooks",
             dependencies: ["BorisCodeStatusCore"]
         ),
+        // The AppKit side, a library so the drawing can be tested without launching the app.
+        .target(
+            name: "BorisCodeStatusMenuBar",
+            dependencies: ["BorisCodeStatusCore"]
+        ),
+        .executableTarget(
+            name: "BorisCodeStatus",
+            dependencies: ["BorisCodeStatusCore", "BorisCodeStatusMenuBar"]
+        ),
         .testTarget(
             name: "BorisCodeStatusCoreTests",
             // The shared fixtures live in the repo-root fixtures/ folder so the C# tests read the
             // same files. SwiftPM cannot bundle resources from outside a target, so the tests find
             // them relative to their own source file instead.
             dependencies: ["BorisCodeStatusCore"]
+        ),
+        .testTarget(
+            name: "BorisCodeStatusMenuBarTests",
+            dependencies: ["BorisCodeStatusCore", "BorisCodeStatusMenuBar"]
         ),
     ]
 )

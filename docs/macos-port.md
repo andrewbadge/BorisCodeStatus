@@ -3,24 +3,31 @@
 [← Back to the README](../README.md)
 
 
-**Status: in progress.** Steps 1 and 2 of the [order of work](#order-of-work) exist in
-[`macos/`](../macos): the `BorisCodeStatusCore` Swift package, the `BorisCodeStatusHooks` helper
-and the shared fixtures. Nothing installs or registers it yet, and there is no menu-bar app. This
-page records how the macOS version is built, what it deliberately leaves out, and which Windows
-decisions carry over unchanged. As parts ship, they move into the regular docs (`install.md`,
-`privacy.md`, `tray.md`, `known-limitations.md`) and this page shrinks to the reasoning.
+**Status: in progress.** Steps 1 to 3 of the [order of work](#order-of-work) exist in
+[`macos/`](../macos): the `BorisCodeStatusCore` Swift package, the `BorisCodeStatusHooks` helper,
+the shared fixtures, and a menu-bar app that draws the pet from live state. Nothing registers the
+hooks yet, and there are no cards, sounds or settings window. This page records how the macOS
+version is built, what it deliberately leaves out, and which Windows decisions carry over
+unchanged. As parts ship, they move into the regular docs (`install.md`, `privacy.md`, `tray.md`,
+`known-limitations.md`) and this page shrinks to the reasoning.
 
 ```bash
 cd macos
-swift build                                   # the core library and the hook helper
+swift build                                   # every target
 swift test                                    # needs Xcode; Command Line Tools lack swift-testing's macros
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test   # if xcode-select still points at them
+scripts/build-app.sh                          # universal, ad-hoc signed .build/BorisCodeStatus.app
+scripts/build-app.sh --debug                  # this machine's architecture only, faster
 echo '{"hook_event_name":"Notification"}' | .build/debug/BorisCodeStatusHooks notification
 ```
 
-Running the helper by hand writes the real `~/Library/Application Support/BorisCodeStatus/state.json`.
-That is harmless, since only this app reads the file. It never touches `~/.claude/settings.json`,
-which only the app's registration does.
+Running the helper by hand writes the real `~/Library/Application Support/BorisCodeStatus/state.json`,
+which a running app picks up at once. That is harmless, since only this app reads the file. It never
+touches `~/.claude/settings.json`, which only the app's registration does.
+
+The pet sprites in `SpriteData.swift` are generated from the Windows build's `DogSprites.cs` by
+script rather than retyped, and a test checks every grid is 16 by 16 and only uses colours its
+palette defines. Edit both files together.
 
 ---
 
