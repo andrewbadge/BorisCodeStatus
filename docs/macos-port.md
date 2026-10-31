@@ -6,8 +6,8 @@
 **Status: in progress.** Steps 1 to 5 of the [order of work](#order-of-work) exist in
 [`macos/`](../macos): the `BorisCodeStatusCore` Swift package, the `BorisCodeStatusHooks` helper,
 the shared fixtures, a menu-bar app that draws the pet from live state, the waiting, idle,
-status and usage-warning cards, the pets' sounds, a settings window, and hook registration.
-There is no login item, signing, notarisation or update check yet. This page records how the macOS version is built, what
+status and usage-warning cards, the pets' sounds, a settings window, hook registration and
+Open at Login. There is no signing, notarisation or update check yet. This page records how the macOS version is built, what
 it deliberately leaves out, and which Windows decisions carry over unchanged. As parts ship, they
 move into the regular docs (`install.md`, `privacy.md`, `tray.md`, `known-limitations.md`) and
 this page shrinks to the reasoning.
@@ -119,7 +119,7 @@ These are rules, not Windows details, and the Mac version keeps every one of the
 | `SettingsWindow` | SwiftUI window | Pages: Notify, Card, Usage, Advanced, About. Pixel widgets drawn in `Canvas`. |
 | `WindowActivator` | `NSWorkspace.openApplication(at:configuration:)` with `activates = true` | Plain `NSRunningApplication.activate()` from a background app is often ignored on macOS 14 and later. Raising a specific *window* needs the Accessibility permission, so v1 raises the app only. |
 | `WaitingSound` | `NSSound` | The same bundled WAV files. |
-| HKCU `Run` key | `SMAppService.mainApp.register()` | Appears under System Settings → General → Login Items. |
+| HKCU `Run` key | `SMAppService.mainApp.register()` | Appears under System Settings → General → Login Items. Turned on once, by the first launch of an installed copy (`login_item_set_up` records it), so switching it off sticks; also a switch on the Advanced page. |
 | Single-instance mutex | Check `NSRunningApplication` for the bundle identifier | |
 | WiX MSI | Notarised `.dmg`; a Homebrew cask later, optionally | |
 

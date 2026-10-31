@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // After the menu bar is up, so a locked or unusual settings.json never delays startup.
         menuBar.registerHooks(reporting: false)
+        LoginItem.setUpOnce(helperPath: MenuBarController.hooksPath)
     }
 }
 

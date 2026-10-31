@@ -67,6 +67,8 @@ final class SettingsModel {
     var state = VitalsState()
     var clickTarget: String?
     var registeredHooksPath: String?
+    var openAtLogin = false
+    var loginNeedsApproval = false
     var apps: [(identifier: String, name: String)] = []
 
     init(controller: MenuBarController) {
@@ -87,6 +89,17 @@ final class SettingsModel {
         state = controller.state
         clickTarget = ClickTargetPreference.get()
         registeredHooksPath = controller.registeredHooksPath
+        openAtLogin = LoginItem.isEnabled
+        loginNeedsApproval = LoginItem.needsApproval
+    }
+
+    func setOpenAtLogin(_ enabled: Bool) {
+        do {
+            try LoginItem.set(enabled)
+        } catch {
+            controller.notice("Open at Login could not be changed: \(error.localizedDescription)")
+        }
+        reload()
     }
 
     /// The apps that are open now, plus a saved choice that is not running — listed anyway, so the
@@ -113,7 +126,6 @@ final class SettingsModel {
             controller.notice("That preference could not be saved.")
         }
         clickTarget = ClickTargetPreference.get()
-        registeredHooksPath = controller.registeredHooksPath
     }
 }
 
@@ -293,6 +305,17 @@ private struct AdvancedPage: View {
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Open at login", isOn: Binding(get: { model.openAtLogin }, set: { model.setOpenAtLogin($0) }))
+                if model.loginNeedsApproval {
+                    LabeledContent("Needs your approval in System Settings") {
+                        Button("Open Login Items") { LoginItem.openSystemSettings() }
+                    }
+                }
+            } header: {
+                Text("General")
+            }
+
             Section {
                 LabeledContent("Re-register hooks") {
                     Button("Re-register") {

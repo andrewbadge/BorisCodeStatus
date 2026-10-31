@@ -223,6 +223,15 @@ written until the user first changes a setting. A file that will not parse is co
 | `update_check_enabled` | Ask GitHub every 6 hours for a newer release | `false` |
 | `update_notified_version` | Newest release already announced, so it is announced once | `null` |
 
+The macOS build ([`macos-port.md`](macos-port.md)) keeps the same file in
+`~/Library/Application Support/BorisCodeStatus/`, with these differences: no `http_enabled` or
+`usage_api_enabled`; `pet` defaults to `Cat`; `status_card_pinned` and `status_card_mini`
+default to `true`; `click_target_app` is a bundle identifier; and one member of its own:
+
+| Member | Meaning | Default |
+|---|---|---|
+| `login_item_set_up` | Open at Login has been turned on once, by the first launch of an installed copy, so a later launch does not turn it back on | `false` |
+
 Versions before 1.7 kept each preference in a file of its own (`http-enabled.flag`,
 `pet.txt`, …). The first start of 1.7 imports them into `settings.json` and deletes them.
 

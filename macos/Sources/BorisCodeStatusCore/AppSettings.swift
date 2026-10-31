@@ -62,6 +62,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// The 5-hour usage, in percent, past which the warning card shows. See `SessionWarningPreference`.
     public var sessionWarningPercent = SessionWarningPreference.defaultPercent
 
+    /// Mac only. Whether the first launch of an installed copy has already turned on Open at
+    /// Login. See `LoginItemPreference`.
+    public var loginItemSetUp = false
+
     public init() {}
 
     enum CodingKeys: String, CodingKey {
@@ -79,6 +83,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case updateCheckEnabled = "update_check_enabled"
         case updateNotifiedVersion = "update_notified_version"
         case sessionWarningPercent = "session_warning_percent"
+        case loginItemSetUp = "login_item_set_up"
     }
 
     /// Member by member, and forgiving of each: a missing member or one of the wrong type keeps
@@ -104,6 +109,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         updateCheckEnabled = value(.updateCheckEnabled, updateCheckEnabled)
         updateNotifiedVersion = value(.updateNotifiedVersion, updateNotifiedVersion)
         sessionWarningPercent = value(.sessionWarningPercent, sessionWarningPercent)
+        loginItemSetUp = value(.loginItemSetUp, loginItemSetUp)
     }
 
     /// A pet list, skipping names this build does not know rather than dropping the whole list.

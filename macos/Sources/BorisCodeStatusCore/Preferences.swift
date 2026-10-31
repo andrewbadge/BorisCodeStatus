@@ -171,3 +171,19 @@ public enum UpdateCheckPreference {
         SettingsStore.tryUpdate(url: url) { $0.updateNotifiedVersion = version }
     }
 }
+
+/// Whether the app has already turned on Open at Login, once, on the first launch of an installed
+/// copy. Whether it is on *now* is not a preference: macOS keeps that (`SMAppService`), and the user
+/// can change it in System Settings → General → Login Items without this app knowing. This flag
+/// only stops a later launch from turning it back on after the user has turned it off. Windows has
+/// no equivalent: its installer always writes a Run key.
+public enum LoginItemPreference {
+    public static func isSetUp(url: URL = VitalsPaths.appSettingsFile) -> Bool {
+        SettingsStore.load(url: url).loginItemSetUp
+    }
+
+    @discardableResult
+    public static func trySetSetUp(url: URL = VitalsPaths.appSettingsFile) -> Bool {
+        SettingsStore.tryUpdate(url: url) { $0.loginItemSetUp = true }
+    }
+}
