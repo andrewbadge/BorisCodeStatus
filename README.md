@@ -2,13 +2,14 @@
 
 # BorisCodeStatus
 
-**A Windows tray app — and a LAN endpoint for a desk display — that shows what Claude Code is doing and how much quota is left.**
+**A Windows tray app and a macOS menu-bar app — plus, on Windows, a LAN endpoint for a desk display — that show what Claude Code is doing and how much quota is left.**
 
 [![Release](https://img.shields.io/github/v/release/andrewbadge/BorisCodeStatus?label=release)](https://github.com/andrewbadge/BorisCodeStatus/releases/latest)
 [![Build](https://img.shields.io/github/actions/workflow/status/andrewbadge/BorisCodeStatus/build.yml?branch=main&label=build)](https://github.com/andrewbadge/BorisCodeStatus/actions/workflows/build.yml)
-![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
-![Platform](https://img.shields.io/badge/platform-x64-555)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011%20x64-0078D4)
+![macOS](https://img.shields.io/badge/macOS-14%2B%20universal-000000)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
+![Swift](https://img.shields.io/badge/Swift-6-F05138)
 [![Licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-blue)](LICENSE)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/andrewbadge)
 
@@ -21,6 +22,7 @@
 [The `/status` endpoint](docs/status-endpoint.md) ·
 [Install](docs/install.md) ·
 [Tray icon](docs/tray.md) ·
+[macOS](#on-macos) ·
 [HTTP service](docs/tray.md#the-http-service-off-by-default) ·
 [Build](docs/development.md) ·
 [Design notes](docs/development.md#design-notes) ·
@@ -34,10 +36,11 @@
 
 ---
 
-A small Windows tray app that shows what [Claude Code](https://docs.claude.com/en/docs/claude-code)
-is doing — working, idle, or waiting for your permission — and how much of your usage quota is
-left, and serves the same data over HTTP on your local network so a physical display (an
-ESP32-based CrowPanel, in the setup it was built for) can show it too.
+A small app that shows what [Claude Code](https://docs.claude.com/en/docs/claude-code) is doing —
+working, idle, or waiting for your permission — and how much of your usage quota is left: a tray
+app on Windows, and a native menu-bar app on macOS. The Windows app can also serve the same data
+over HTTP on your local network, so a physical display (an ESP32-based CrowPanel, in the setup it
+was built for) can show it too.
 
 - A pixel-art dog — or cat, sentry bot, rubber duck or goat — in the tray shows Claude's state; a ring behind it shows the
   five-hour quota used, green, then amber, then red.
@@ -46,8 +49,8 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
 - A status card you can pin on screen, full size or mini.
 - A warning card when your 5-hour usage passes a threshold you set (80% by default), until you dismiss it.
 - An optional update check against GitHub releases, **off by default**.
-- `GET /status` on port 5080 returns the whole picture as JSON for any device on the LAN — once you
-  switch it on. The HTTP service is **off by default**.
+- On Windows, `GET /status` on port 5080 returns the whole picture as JSON for any device on the
+  LAN — once you switch it on. The HTTP service is **off by default**, and the Mac app has none.
 
 ### Features
 
@@ -76,12 +79,29 @@ ESP32-based CrowPanel, in the setup it was built for) can show it too.
 <td width="50%" valign="top"><img src="docs/images/settings-notify-idle.png" alt="The settings window's Notify page, When idle section: Show a card and Play a sound both on, Purr chosen" width="380"><br><b>When idle.</b> The same choices for when Claude finishes its turn: a <i>YOUR TURN</i> card, a sound, or both, with its own choice of sound. Off by default.</td>
 </tr>
 <tr>
-<td colspan="2" valign="top"><b>Errors are logged.</b> Anything unexpected, from the tray or the hook, goes to <code>%LOCALAPPDATA%\BorisCodeStatus\error.log</code> instead of a crash dialog.</td>
+<td colspan="2" valign="top"><b>Errors are logged.</b> Anything unexpected, from the app or the hook, goes to <code>error.log</code> instead of a crash dialog: <code>%LOCALAPPDATA%\BorisCodeStatus\</code> on Windows, <code>~/Library/Application Support/BorisCodeStatus/</code> on macOS.</td>
 </tr>
 </table>
 
-It runs as a per-user tray icon — no console window, no Windows service, no administrator rights
-to install.
+On Windows it runs as a per-user tray icon — no console window, no Windows service, no
+administrator rights to install. On macOS it is a menu-bar app with no Dock icon.
+
+### On macOS
+
+The Mac app is native Swift, built from the same design and held to the same rules by shared test
+data, with a smaller surface ([macOS port](docs/macos-port.md) has the reasoning):
+
+- **The same pets, ring, cards, sounds and settings**, in the menu bar. The cards appear top right,
+  under the menu bar, and never take focus.
+- **No HTTP service and no ESP32 relay**, so no listener, no firewall prompt, and no usage-API
+  fallback — it never reads your OAuth token. Its only network call is the opt-in update check.
+- **Different defaults:** the cat, and the mini status card kept on screen. Both are a setting away.
+- **Opens at login** once installed (System Settings → General → Login Items), and registers its
+  hooks on every launch. Before deleting the app, use **Settings → Advanced → Unregister hooks**:
+  a Mac app has no uninstaller to tidy `~/.claude/settings.json`.
+
+**There is no Mac download yet.** Releases will carry a signed, notarised `.dmg` once Developer ID
+signing is in place; until then, build it from source (below).
 
 > **Unofficial.** This is an independent community project. It is not made, endorsed or supported
 > by Anthropic. See [Trademarks](docs/license.md#trademarks).
@@ -94,8 +114,12 @@ and asleep when nothing is happening.
 
 ## Quick start
 
-**Requirements:** Windows 10 or 11 (x64) and Claude Code. The quota figures need a Claude
-subscription login — Claude Code omits `rate_limits` on API-key sessions, so those show state only.
+Both need Claude Code. The quota figures need a Claude subscription login — Claude Code omits
+`rate_limits` on API-key sessions, so those show state only.
+
+### Windows
+
+**Requirements:** Windows 10 or 11 (x64).
 
 1. Download `BorisCodeStatus-<version>.msi` from the
    [Releases](https://github.com/andrewbadge/BorisCodeStatus/releases) page and run it.
@@ -113,6 +137,25 @@ subscription login — Claude Code omits `rate_limits` on API-key sessions, so t
 The display firmware is a separate project and is not part of this repository. Anything that can
 make an HTTP `GET` and parse JSON can consume `/status`.
 
+### macOS
+
+**Requirements:** macOS 14 or later, on Apple silicon or Intel, and Xcode or its Command Line
+Tools to build. Until releases carry a `.dmg`, build it from source:
+
+```bash
+git clone https://github.com/andrewbadge/BorisCodeStatus.git
+cd BorisCodeStatus/macos
+scripts/build-app.sh                                   # universal, ad-hoc signed .build/BorisCodeStatus.app
+ditto .build/BorisCodeStatus.app /Applications/BorisCodeStatus.app
+open /Applications/BorisCodeStatus.app
+```
+
+1. Install to **Applications** and open it from there. A copy run from the build folder, or
+   straight from a download, refuses to register its hooks, because that path will not last.
+2. The pet appears in the menu bar and the app registers its hooks in `~/.claude/settings.json`.
+   Restart Claude Code to pick them up.
+3. Click the pet for **Show Status Card** and **Settings…**.
+
 ## Documentation
 
 | Page | What it covers |
@@ -125,7 +168,7 @@ make an HTTP `GET` and parse JSON can consume `/status`.
 | [Development](docs/development.md) | Building, CI, dependency updates, publishing a release, testing hooks, design notes |
 | [Spec](docs/SPECS.md) | The behaviour spec |
 | [Known limitations](docs/known-limitations.md) | What it cannot do, and why |
-| [macOS port](docs/macos-port.md) | The native Swift menu-bar version, in progress, without the HTTP service |
+| [macOS port](docs/macos-port.md) | The native Swift menu-bar version: what it shares with Windows, what it leaves out, and why |
 | [License](docs/license.md) | GPL-3.0-or-later, third-party components, trademarks |
 
 ## Repository layout
@@ -133,7 +176,7 @@ make an HTTP `GET` and parse JSON can consume `/status`.
 | Folder | What it holds |
 |---|---|
 | [`windows/`](windows) | The Windows app: `BorisCodeStatus.slnx` and its .NET projects (tray, hooks, core, API, tests, WiX installer) |
-| [`macos/`](macos) | The macOS port: a Swift package with the menu-bar app and the hook helper |
+| [`macos/`](macos) | The macOS app: a Swift package with the menu-bar app and the hook helper |
 | [`shared/`](shared) | What both builds use: `fixtures/` (test data both test suites run) and `sounds/` (the pets' WAV recordings) |
 | [`docs/`](docs) | Everything linked above |
 
