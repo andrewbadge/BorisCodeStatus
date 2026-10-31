@@ -172,7 +172,7 @@ Two moments, each with three independent settings:
   one still playing.
 - Picking a sound, or switching a sound on, plays it immediately. Switching a card on shows one.
 - The sound choice is kept per moment and per pet, so switching pets keeps every choice.
-- **Sounds** are four 16-bit PCM WAV recordings made for the project, embedded in the tray
+- **Sounds** are 16-bit PCM WAV recordings kept in `shared/sounds`, embedded in the tray
   assembly and played with `System.Media.SoundPlayer`.
 
 **When notification is clicked** applies to the waiting and idle cards. **Just dismiss** (the

@@ -150,8 +150,8 @@ Where the two builds differ in the details:
   brought forward: launching one the user has quit would be a surprise.
 - **There are no balloons.** A preference that could not be saved, or a click target that is not
   running, is reported on a persistent card instead.
-- **The sounds** are the Windows build's WAV files, copied into `Contents/Resources/Sounds` by
-  `scripts/build-app.sh`, so the repo keeps one copy of each.
+- **The sounds** are the same WAV files as Windows, from `shared/sounds`, copied into
+  `Contents/Resources/Sounds` by `scripts/build-app.sh`, so the repo keeps one copy of each.
 
 ---
 
@@ -199,7 +199,7 @@ decision rather than a technical one. Ad-hoc signing is enough for anyone buildi
 Two implementations of `VitalsUpdates`, `DogStates` and session status can drift apart. The guard
 is shared test data rather than shared code:
 
-- A repo-level `fixtures/` folder: `dog-states.json` (states and the expected pose and session
+- The repo-level `shared/fixtures/` folder: `dog-states.json` (states and the expected pose and session
   status at a fixed instant), `folds.json` (hook sequences and the state they should produce) and
   `state-windows.json` (a file the Windows build actually wrote, which the Swift build must read).
 - Both `BorisCodeStatus.Core.Tests` (`SharedFixtureTests.cs`) and the Swift tests

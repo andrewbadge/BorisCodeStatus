@@ -65,12 +65,12 @@ struct PortraitAndSoundTests {
         }
     }
 
-    /// The bundle copies the Windows build's recordings by name, so a rename there would silence a
-    /// pet here without this.
+    /// The bundle copies the shared recordings by name, so a rename there would silence a pet here
+    /// without this.
     @Test(arguments: Pet.allCases)
     func everySoundHasARecording(pet: Pet) {
         for alternate in [false, true] {
-            let file = Self.repoRoot.appending(path: "BorisCodeStatus.Tray/Sounds").appending(path: WaitingSound.fileName(pet, alternate: alternate))
+            let file = Self.repoRoot.appending(path: "shared/sounds").appending(path: WaitingSound.fileName(pet, alternate: alternate))
             #expect(FileManager.default.fileExists(atPath: file.path), "\(file.lastPathComponent)")
         }
     }

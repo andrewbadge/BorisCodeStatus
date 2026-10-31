@@ -44,7 +44,7 @@ display keeps its own art. The application icon stays the dog.
 
 ### The application icon
 
-Separate from the tray glyph, `BorisCodeStatus.Tray/fido.ico` is what Explorer, the Start Menu, Alt-Tab
+Separate from the tray glyph, `windows/BorisCodeStatus.Tray/fido.ico` is what Explorer, the Start Menu, Alt-Tab
 and Installed Apps show. It is one of only two kinds of committed binary in the project — the other is the waiting
 sounds — because the toolchain's `ApplicationIcon` takes a file path, not pixel data, so the
 `DogSprites` approach does not apply.
@@ -193,7 +193,7 @@ both or neither works for each.
 - The recordings are by [freesound_community](https://pixabay.com/users/freesound_community-46691455/)
   on Pixabay, used under the [Pixabay Content License](https://pixabay.com/service/license-summary/)
   rather than this project's licence (see [Third-party components](license.md#third-party-components)). They are 16-bit PCM
-  WAV, embedded in the tray assembly (`BorisCodeStatus.Tray/Sounds`), because the built-in
+  WAV, kept in `shared/sounds` and embedded in the tray assembly, because the built-in
   `SoundPlayer` plays only WAV and an embedded resource needs nothing from the installer.
 
 ### The HTTP service (off by default)

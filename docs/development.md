@@ -7,10 +7,16 @@ Requires the .NET 10 SDK and the WiX v4 CLI:
 
 ```bash
 dotnet tool install --global wix --version 4.0.5
+cd windows
 dotnet build -c Release
 ```
 
-A Release build of the solution produces `BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi` as a
+The solution and its projects are in `windows/`; every `dotnet` command below runs from there.
+`Directory.Build.props`, which carries the version, stays at the repo root, where MSBuild finds it
+by walking up. The waiting sounds and the shared test fixtures are in the repo-root `shared/`, which
+the macOS build in `macos/` uses too.
+
+A Release build of the solution produces `windows\BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi` as a
 normal build output — no separate packaging step.
 
 > **WiX version:** pinned to **4.0.5**. WiX v7 requires accepting the Open Source Maintenance Fee
@@ -26,8 +32,11 @@ dotnet test BorisCodeStatus.Core.Tests
 ### Continuous integration
 
 `.github/workflows/build.yml` builds and tests on every push to `main` and every pull request into
-`main`. It builds and verifies the MSI too, so a broken installer fails the PR rather than the
-release, but does not upload it — nothing uses a CI build's MSI. It never publishes a release.
+`main`, in two jobs. **Windows** builds and verifies the MSI too, so a broken installer fails the
+PR rather than the release, but does not upload it — nothing uses a CI build's MSI. **macOS** runs
+`swift test` and assembles the ad-hoc signed `.app`, checking it is universal, carries the version
+from `Directory.Build.props` and has every sound; nothing is uploaded or notarised. It never
+publishes a release.
 
 Pushing repeatedly to a PR cancels the superseded run, so a burst of commits costs one build rather
 than several. Runs on `main` are never cancelled, so every merged commit keeps its own result.

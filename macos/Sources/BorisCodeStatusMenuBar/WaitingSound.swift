@@ -2,7 +2,7 @@ import AppKit
 import BorisCodeStatusCore
 
 /// Plays the pet's sound for "Claude is waiting" or a finished turn, from the same WAV recordings
-/// the Windows build embeds. `scripts/build-app.sh` copies them from `BorisCodeStatus.Tray/Sounds`
+/// the Windows build embeds. `scripts/build-app.sh` copies them from the repo-root `shared/sounds`
 /// into `Contents/Resources/Sounds`, so there is one copy of each in the repo; under `swift run`
 /// there is no bundle and every sound is silently missing, as Windows is when one is.
 @MainActor

@@ -125,8 +125,19 @@ make an HTTP `GET` and parse JSON can consume `/status`.
 | [Development](docs/development.md) | Building, CI, dependency updates, publishing a release, testing hooks, design notes |
 | [Spec](docs/SPECS.md) | The behaviour spec |
 | [Known limitations](docs/known-limitations.md) | What it cannot do, and why |
-| [macOS port](docs/macos-port.md) | Proposal for a native Swift menu-bar version, without the HTTP service |
+| [macOS port](docs/macos-port.md) | The native Swift menu-bar version, in progress, without the HTTP service |
 | [License](docs/license.md) | GPL-3.0-or-later, third-party components, trademarks |
+
+## Repository layout
+
+| Folder | What it holds |
+|---|---|
+| [`windows/`](windows) | The Windows app: `BorisCodeStatus.slnx` and its .NET projects (tray, hooks, core, API, tests, WiX installer) |
+| [`macos/`](macos) | The macOS port: a Swift package with the menu-bar app and the hook helper |
+| [`shared/`](shared) | What both builds use: `fixtures/` (test data both test suites run) and `sounds/` (the pets' WAV recordings) |
+| [`docs/`](docs) | Everything linked above |
+
+`Directory.Build.props` stays at the root: its `<Version>` is the one version for both builds.
 
 Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md), the
 [Code of Conduct](CODE_OF_CONDUCT.md) and the [security policy](SECURITY.md).

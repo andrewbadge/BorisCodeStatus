@@ -14,6 +14,11 @@ current with each change.
 
 ## Commands
 
+The repo has two builds side by side: `windows/` (the .NET solution, below) and `macos/` (the Swift
+port — `swift test` and `scripts/build-app.sh`, see `docs/macos-port.md`). `shared/` holds what both
+use: `fixtures/` and `sounds/`. `Directory.Build.props` stays at the root. Run the `dotnet` commands
+from `windows/`:
+
 ```bash
 dotnet build -c Release                       # also produces BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi
 dotnet build -c Release -p:Version=1.2.3      # versioned MSI

@@ -35,6 +35,12 @@ jobs:
     permissions:
       contents: write # Create the tag and the release.
 
+    # The .NET solution lives in windows/; Directory.Build.props, the version for both builds, stays
+    # at the repo root, where MSBuild finds it by walking up.
+    defaults:
+      run:
+        working-directory: windows
+
     steps:
       - uses: actions/checkout@v7
         with:
@@ -56,7 +62,7 @@ jobs:
         run: |
           # The single source of truth: this same value is stamped onto every assembly and is what
           # the tray menu displays, so a release can never claim a version the app disagrees with.
-          $props = 'Directory.Build.props'
+          $props = '../Directory.Build.props'
           $raw = ([xml](Get-Content $props)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
 
           if (-not $raw) {

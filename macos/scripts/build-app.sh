@@ -37,9 +37,9 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Helpers" "$app/Contents/Resources"
 cp "$products/BorisCodeStatus" "$app/Contents/MacOS/BorisCodeStatus"
 cp "$products/BorisCodeStatusHooks" "$app/Contents/Helpers/BorisCodeStatusHooks"
 
-# The pets' sounds, from the Windows build's copy so the repo holds one of each. See WaitingSound.swift.
+# The pets' sounds, from shared/sounds, which the Windows build embeds too. See WaitingSound.swift.
 mkdir -p "$app/Contents/Resources/Sounds"
-cp "$root"/BorisCodeStatus.Tray/Sounds/*.wav "$app/Contents/Resources/Sounds/"
+cp "$root"/shared/sounds/*.wav "$app/Contents/Resources/Sounds/"
 
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

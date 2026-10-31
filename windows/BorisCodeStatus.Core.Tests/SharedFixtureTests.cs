@@ -6,7 +6,7 @@ using BorisCodeStatus.Core.State;
 namespace BorisCodeStatus.Core.Tests;
 
 /// <summary>
-/// Runs the cases in the repo-root <c>fixtures/</c> folder, which the macOS build's Swift tests
+/// Runs the cases in the repo-root <c>shared/fixtures/</c> folder, which the macOS build's Swift tests
 /// run too. Two implementations of the pose rule and the hook folds can drift apart; holding both
 /// to the same data is what stops that. Change a rule here and the fixture has to change, which
 /// fails the Swift side until it agrees. See docs/macos-port.md.
@@ -110,18 +110,18 @@ public class SharedFixtureTests
 
     private static JsonNode Load(string file) => JsonNode.Parse(File.ReadAllText(Path.Combine(FixturesDirectory(), file)))!;
 
-    /// <summary>Walks up from the test binaries to the repo root, which holds <c>fixtures/</c>.</summary>
+    /// <summary>Walks up from the test binaries to the repo root, which holds <c>shared/fixtures/</c>.</summary>
     private static string FixturesDirectory()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            var candidate = Path.Combine(directory.FullName, "fixtures");
+            var candidate = Path.Combine(directory.FullName, "shared", "fixtures");
             if (Directory.Exists(candidate))
             {
                 return candidate;
             }
         }
 
-        throw new DirectoryNotFoundException("Could not find the repo-root fixtures folder.");
+        throw new DirectoryNotFoundException("Could not find the repo-root shared/fixtures folder.");
     }
 }

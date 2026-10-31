@@ -3,7 +3,7 @@ import Foundation
 /// Maps `VitalsState` onto the dog pose.
 ///
 /// The same rule as `DogStates.For` in the Windows build's Core, which the ESP32 display also
-/// follows. The shared fixtures in `fixtures/dog-states.json` hold both implementations to it.
+/// follows. The shared fixtures in `shared/fixtures/dog-states.json` hold both implementations to it.
 public enum DogStates {
     /// How long `idle` must hold before the dog falls asleep.
     ///

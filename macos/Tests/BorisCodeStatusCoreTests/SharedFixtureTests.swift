@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import BorisCodeStatusCore
 
-/// Runs the cases in the repo-root `fixtures/` folder, which the Windows build's C# tests run too
+/// Runs the cases in the repo-root `shared/fixtures/` folder, which the Windows build's C# tests run too
 /// (`SharedFixtureTests.cs`). Two implementations of the pose rule and the hook folds can drift
 /// apart; holding both to the same data is what stops that.
 struct SharedFixtureTests {
@@ -13,7 +13,7 @@ struct SharedFixtureTests {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
-        .appending(path: "fixtures")
+        .appending(path: "shared/fixtures")
 
     static func load(_ file: String) throws -> JSONValue {
         try JSONValue.parse(String(contentsOf: fixtures.appending(path: file), encoding: .utf8))

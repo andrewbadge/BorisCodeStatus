@@ -27,7 +27,7 @@ let package = Package(
         ),
         .testTarget(
             name: "BorisCodeStatusCoreTests",
-            // The shared fixtures live in the repo-root fixtures/ folder so the C# tests read the
+            // The shared fixtures live in the repo-root shared/fixtures/ folder so the C# tests read the
             // same files. SwiftPM cannot bundle resources from outside a target, so the tests find
             // them relative to their own source file instead.
             dependencies: ["BorisCodeStatusCore"]
