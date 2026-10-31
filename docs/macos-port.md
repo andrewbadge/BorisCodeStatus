@@ -20,6 +20,7 @@ swift test                                    # needs Xcode; Command Line Tools 
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test   # if xcode-select still points at them
 scripts/build-app.sh                          # universal, ad-hoc signed .build/BorisCodeStatus.app
 scripts/build-app.sh --debug                  # this machine's architecture only, faster
+scripts/package-dmg.sh                        # .build/BorisCodeStatus-<version>-macOS.dmg from that .app
 echo '{"hook_event_name":"Notification"}' | .build/debug/BorisCodeStatusHooks notification
 ```
 

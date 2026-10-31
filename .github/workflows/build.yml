@@ -150,3 +150,11 @@ jobs:
           case " $archs " in *" x86_64 "*) ;; *) echo "x86_64 missing: $archs"; exit 1 ;; esac
           codesign --verify --deep --strict "$app"
           echo "Bundle verified: version $version, universal, sounds present"
+
+      # The release download, under the name the app's update check looks for. Ad-hoc signed here,
+      # so it is not uploaded: only the Release workflow's notarised one is fit to hand out.
+      - name: Package the .dmg
+        run: |
+          scripts/package-dmg.sh
+          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' ../Directory.Build.props | head -n 1)
+          test -f ".build/BorisCodeStatus-$version-macOS.dmg"
