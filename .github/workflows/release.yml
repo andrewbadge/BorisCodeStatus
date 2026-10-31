@@ -32,8 +32,17 @@ permissions:
 # one build without the other.
 #
 #   version ─┬─ windows ─┬─ publish
-#            └─ macos  ──┘          (macOS: not yet — it needs the Developer ID signing secrets;
-#                                    see docs/macos-port.md. Add it to publish's needs when it lands.)
+#            └─ macos  ──┘
+#
+# The macos job needs six repository secrets (Settings -> Secrets and variables -> Actions), and
+# fails in its first step, before building anything, if any is missing:
+#   MACOS_CERTIFICATE_P12       the Developer ID Application certificate and its key, exported as
+#                               .p12 and base64-encoded (base64 -i cert.p12 | pbcopy)
+#   MACOS_CERTIFICATE_PASSWORD  the password the .p12 was exported with
+#   MACOS_TEAM_ID               the ten-character Apple Developer team ID
+#   MACOS_NOTARY_KEY_P8         an App Store Connect API key (the .p8 file's text), used to notarise
+#   MACOS_NOTARY_KEY_ID         that key's ID
+#   MACOS_NOTARY_ISSUER_ID      the issuer ID shown above the keys in App Store Connect
 jobs:
   version:
     # Decides the version and checks the tag before anything is built, so a bad version fails in
@@ -210,8 +219,137 @@ jobs:
           path: windows/upload/
           if-no-files-found: error
 
+  macos:
+    needs: version
+    runs-on: macos-15
+
+    defaults:
+      run:
+        working-directory: macos
+
+    env:
+      MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+      MACOS_NOTARY_KEY_P8: ${{ secrets.MACOS_NOTARY_KEY_P8 }}
+      MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+      MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+
+    steps:
+      # First, so a release without the credentials fails in seconds rather than after a build.
+      - name: Check the signing secrets are set
+        run: |
+          missing=""
+          for name in MACOS_CERTIFICATE_P12 MACOS_CERTIFICATE_PASSWORD MACOS_TEAM_ID MACOS_NOTARY_KEY_P8 MACOS_NOTARY_KEY_ID MACOS_NOTARY_ISSUER_ID; do
+            eval "value=\${$name:-}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing. See the header of release.yml."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      # swift-testing's macros need Xcode, not the Command Line Tools.
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer && swift --version
+
+      - name: Test
+        run: swift test
+
+      # A throwaway keychain, so the certificate never touches the runner's login keychain and is
+      # gone with the runner. Its password is random because nothing but this job ever unlocks it.
+      - name: Import the Developer ID certificate
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password=$(openssl rand -base64 24)
+          printf '%s' "$MACOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/certificate.p12"
+
+          # By hash rather than by name, so only the certificate for this team can match, however
+          # many identities the keychain ends up holding.
+          identity=$(security find-identity -v -p codesigning "$keychain" | grep "Developer ID Application: .*($MACOS_TEAM_ID)" | head -n 1 | awk '{print $2}')
+          if [ -z "$identity" ]; then
+            echo "::error::No Developer ID Application identity for team $MACOS_TEAM_ID in the certificate."
+            exit 1
+          fi
+          echo "SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+      - name: Build and sign the app bundle
+        run: scripts/build-app.sh
+
+      - name: Verify the bundle looks right
+        run: |
+          app=.build/BorisCodeStatus.app
+          expected='${{ needs.version.outputs.version }}'
+          test -x "$app/Contents/MacOS/BorisCodeStatus"
+          test -x "$app/Contents/Helpers/BorisCodeStatusHooks"
+          test "$(ls "$app/Contents/Resources/Sounds"/*.wav | wc -l)" -eq "$(ls ../shared/sounds/*.wav | wc -l)"
+          actual=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist")
+          if [ "$actual" != "$expected" ]; then echo "::error::Bundle version is $actual, expected $expected"; exit 1; fi
+          archs=$(lipo -archs "$app/Contents/MacOS/BorisCodeStatus")
+          case " $archs " in *" arm64 "*) ;; *) echo "::error::arm64 missing: $archs"; exit 1 ;; esac
+          case " $archs " in *" x86_64 "*) ;; *) echo "::error::x86_64 missing: $archs"; exit 1 ;; esac
+          codesign --verify --deep --strict "$app"
+
+          # Notarisation rejects anything without the hardened runtime, or signed by another team;
+          # better to learn that here than from Apple's log.
+          for binary in "$app" "$app/Contents/Helpers/BorisCodeStatusHooks"; do
+            details=$(codesign -dv --verbose=4 "$binary" 2>&1)
+            echo "$details" | grep -q "^TeamIdentifier=$MACOS_TEAM_ID$" || { echo "::error::$binary is not signed by team $MACOS_TEAM_ID"; exit 1; }
+            echo "$details" | grep -q "flags=.*runtime" || { echo "::error::$binary lacks the hardened runtime"; exit 1; }
+          done
+          echo "Bundle verified: version $actual, universal, Developer ID signed with the hardened runtime"
+
+      # The .dmg is signed as well as the app inside it, so Gatekeeper can check the download
+      # itself; then notarised with the API key (not an Apple ID and app-specific password) and
+      # stapled, so it opens without a network check on first launch.
+      - name: Package, sign, notarise and staple the .dmg
+        run: |
+          scripts/package-dmg.sh
+          dmg=".build/BorisCodeStatus-${{ needs.version.outputs.version }}-macOS.dmg"
+          test -f "$dmg"
+          codesign --force --sign "$SIGN_IDENTITY" --timestamp "$dmg"
+
+          key="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s\n' "$MACOS_NOTARY_KEY_P8" > "$key"
+          xcrun notarytool submit "$dmg" --key "$key" --key-id "$MACOS_NOTARY_KEY_ID" --issuer "$MACOS_NOTARY_ISSUER_ID" --wait --timeout 30m --output-format json > "$RUNNER_TEMP/notary.json" || true
+          rm "$key"
+          cat "$RUNNER_TEMP/notary.json"
+
+          status=$(plutil -extract status raw -o - "$RUNNER_TEMP/notary.json" 2>/dev/null || echo unknown)
+          if [ "$status" != "Accepted" ]; then
+            echo "::error::Notarisation status: $status. 'xcrun notarytool log <id>' with the same key shows why."
+            exit 1
+          fi
+
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+          spctl --assess --type open --context context:primary-signature --verbose "$dmg"
+
+          mkdir -p upload
+          cp "$dmg" upload/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: macos/upload/
+          if-no-files-found: error
+
+      - name: Remove the signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+
   publish:
-    needs: [version, windows]
+    needs: [version, windows, macos]
     runs-on: ubuntu-latest
 
     permissions:
@@ -235,19 +373,22 @@ jobs:
           $tag = '${{ needs.version.outputs.tag }}'
 
           # Every platform job uploads its download already named for the release; each one found
-          # here is attached. The windows job's MSI is required (publish needs it); the macOS .dmg
-          # joins this list once that job exists.
+          # here is attached. Both are required: the Mac update check announces only a release that
+          # carries the .dmg.
           $assets = @(Get-ChildItem downloads -File | ForEach-Object { $_.FullName })
-          if (-not ($assets | Where-Object { $_ -like '*.msi' })) { throw "No MSI was downloaded" }
           $msi = "BorisCodeStatus-$version.msi"
+          $dmg = "BorisCodeStatus-$version-macOS.dmg"
+          foreach ($required in @($msi, $dmg)) {
+            if (-not ($assets | Where-Object { (Split-Path $_ -Leaf) -eq $required })) { throw "$required was not downloaded" }
+          }
 
           # Built as an array rather than a here-string: PowerShell treats a backtick as an escape
           # character, so markdown code spans inside a here-string would be silently mangled.
           # Written to a file and passed with --notes-file to avoid multi-line argument quoting.
           $notes = @(
-            'Per-user Windows installer for BorisCodeStatus.',
+            '## Windows',
             '',
-            "**Install:** run $msi. No administrator rights are required - it installs under",
+            "**Install:** run $msi, the per-user installer. No administrator rights are required - it installs under",
             'your local app data, starts at login via an HKCU Run key, and registers its Claude Code',
             'hooks on first launch.',
             '',
@@ -259,6 +400,16 @@ jobs:
             'to send to whoever is.',
             '',
             'See docs/status-endpoint.md for the /status schema, and note that the endpoint is unauthenticated.',
+            '',
+            '## macOS',
+            '',
+            "**Install:** open $dmg and drag BorisCodeStatus to Applications. It needs macOS 14 or later and",
+            'runs natively on Apple silicon and Intel. Signed with a Developer ID and notarised by Apple. Its',
+            'first launch registers its Claude Code hooks and adds it to your login items; it lives in the',
+            'menu bar, with no Dock icon.',
+            '',
+            '**Before deleting the app,** use **Settings > Advanced > Unregister hooks**, so that',
+            '~/.claude/settings.json is not left pointing at a missing helper.',
             '',
             'Free software under the GNU GPL v3 or later; the source for this release is the tagged',
             'commit. An unofficial community project, not affiliated with Anthropic.'

@@ -59,11 +59,18 @@ never disagree. One run makes one release for every platform, in jobs:
 |---|---|---|
 | `version` | Ubuntu | Reads and checks the version and tag (below), before anything is built |
 | `windows` | Windows | Restores, tests, builds and verifies the MSI; uploads `BorisCodeStatus-<version>.msi` |
-| `macos` | macOS | *Not yet:* builds, signs with a Developer ID and notarises `BorisCodeStatus-<version>-macOS.dmg`. Waits on the signing credentials; see [macOS port](macos-port.md) |
+| `macos` | macOS | Tests, builds the universal app signed with a Developer ID and the hardened runtime, then signs, notarises and staples `BorisCodeStatus-<version>-macOS.dmg`; uploads it |
 | `publish` | Ubuntu | Runs only once every platform job has passed; creates the tag and the release with all the downloads attached |
 
 A failure in any platform job publishes nothing, so a release never carries one build without the
 other — which the macOS update check relies on.
+
+**The `macos` job needs six repository secrets**, listed with what each holds in the header of
+`release.yml`: the Developer ID Application certificate as a base64 `.p12` and its password, the
+team ID, and an App Store Connect API key (the `.p8` text, its key ID and the issuer ID) for
+`notarytool`. The certificate is imported into a throwaway keychain that the job deletes. Without
+the secrets the job fails in its first step, and so no release can be published at all — Windows
+included — until they are set.
 
 **The version is not an input.** It comes from `<Version>` in `Directory.Build.props` — the same
 value stamped onto every assembly and shown in the tray menu — so a published release can never

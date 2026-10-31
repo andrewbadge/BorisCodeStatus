@@ -7,8 +7,8 @@
 [`macos/`](../macos): the `BorisCodeStatusCore` Swift package, the `BorisCodeStatusHooks` helper,
 the shared fixtures, a menu-bar app that draws the pet from live state, the waiting, idle,
 status and usage-warning cards, the pets' sounds, a settings window, hook registration and
-Open at Login, and the opt-in update check. Signing, notarisation and a Mac release are not
-done yet. This page records how the macOS version is built, what
+Open at Login, and the opt-in update check. The Release workflow's `macos` job signs, notarises
+and attaches the `.dmg`, but has not run yet: it waits on the Developer ID credentials. This page records how the macOS version is built, what
 it deliberately leaves out, and which Windows decisions carry over unchanged. As parts ship, they
 move into the regular docs (`install.md`, `privacy.md`, `tray.md`, `known-limitations.md`) and
 this page shrinks to the reasoning.
@@ -135,8 +135,8 @@ The **Advanced** page shrinks to repairs:
 
 **About** keeps *Check for updates* (`update_check_enabled`, off by default). It announces a
 release only if it carries a Mac download named `BorisCodeStatus-<version>-macOS.dmg`: the same tag
-ships both builds, and a Windows-only release would send Mac users to an MSI. Until the Release
-workflow attaches one, the check finds nothing to announce. Notify,
+ships both builds, and a Windows-only release would send Mac users to an MSI. Releases made
+before the Mac build existed carry none, so the check finds nothing to announce in them. Notify,
 Card and Usage are unchanged. `http_enabled` and `usage_api_enabled` do not exist on the Mac.
 
 Where the two builds differ in the details:
@@ -193,6 +193,14 @@ Gatekeeper blocks an unsigned downloaded app. A public release needs a Developer
 the credentials held as repository secrets. Like the WiX 4.0.5 pin, that is a cost and licensing
 decision rather than a technical one. Ad-hoc signing is enough for anyone building from source.
 
+`scripts/build-app.sh` signs ad hoc unless `SIGN_IDENTITY` names a certificate; a real identity
+also gets the hardened runtime and a secure timestamp, which notarisation requires. No entitlements
+are needed. The Release workflow's `macos` job does the rest: it imports the certificate into a
+throwaway keychain, checks that both binaries carry the team ID and the hardened runtime, signs the
+`.dmg`, notarises it with an App Store Connect API key rather than an Apple ID and app-specific
+password, and staples the ticket so the first launch needs no network check. The secrets it needs
+are listed in the header of `release.yml`.
+
 ---
 
 ## Keeping the two in step
@@ -208,8 +216,8 @@ is shared test data rather than shared code:
 - The clock is always injected, so the fixtures pin an instant and never depend on today's date.
 
 **Version.** `<Version>` in `Directory.Build.props` stays the single source of truth. A build step
-stamps it into `CFBundleShortVersionString` and `CFBundleVersion`, and the Release workflow gains a
-`macos` job that builds, signs and notarises the `.dmg` alongside the MSI.
+stamps it into `CFBundleShortVersionString` and `CFBundleVersion`, and the Release workflow's
+`macos` job builds, signs and notarises the `.dmg` alongside the MSI.
 
 ---
 
