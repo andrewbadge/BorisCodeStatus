@@ -237,7 +237,9 @@ jobs:
 
     steps:
       # First, so a release without the credentials fails in seconds rather than after a build.
+      # Before the checkout, so it runs in the workspace: the job's macos/ default does not exist yet.
       - name: Check the signing secrets are set
+        working-directory: ${{ github.workspace }}
         run: |
           missing=""
           for name in MACOS_CERTIFICATE_P12 MACOS_CERTIFICATE_PASSWORD MACOS_TEAM_ID MACOS_NOTARY_KEY_P8 MACOS_NOTARY_KEY_ID MACOS_NOTARY_ISSUER_ID; do
@@ -348,6 +350,7 @@ jobs:
 
       - name: Remove the signing keychain
         if: always()
+        working-directory: ${{ github.workspace }} # Also runs when the job failed before the checkout.
         run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
 
   publish:
