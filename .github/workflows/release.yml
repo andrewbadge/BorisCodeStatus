@@ -294,6 +294,7 @@ jobs:
           expected='${{ needs.version.outputs.version }}'
           test -x "$app/Contents/MacOS/BorisCodeStatus"
           test -x "$app/Contents/Helpers/BorisCodeStatusHooks"
+          test -f "$app/Contents/Resources/AppIcon.icns"
           test "$(ls "$app/Contents/Resources/Sounds"/*.wav | wc -l)" -eq "$(ls ../shared/sounds/*.wav | wc -l)"
           actual=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist")
           if [ "$actual" != "$expected" ]; then echo "::error::Bundle version is $actual, expected $expected"; exit 1; fi

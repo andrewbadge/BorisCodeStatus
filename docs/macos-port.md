@@ -21,6 +21,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test   # if xcode
 scripts/build-app.sh                          # universal, ad-hoc signed .build/BorisCodeStatus.app
 scripts/build-app.sh --debug                  # this machine's architecture only, faster
 scripts/package-dmg.sh                        # .build/BorisCodeStatus-<version>-macOS.dmg from that .app
+scripts/make-icon.sh                          # re-render Resources/AppIcon.icns (the cat) after changing AppIcon.swift
 echo '{"hook_event_name":"Notification"}' | .build/debug/BorisCodeStatusHooks notification
 ```
 
