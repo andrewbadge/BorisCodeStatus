@@ -58,9 +58,9 @@ public final class CardPanel: NSPanel {
     static let fullSize = CGSize(width: screenWidth + 2 * (border + frameWidth), height: screenHeight + border + frameWidth + chin + border)
     static let miniSize = CGSize(width: miniWidth, height: miniHeight)
 
-    static let borderColor = PixelColor(0x3A, 0x36, 0x2B)
+    nonisolated static let borderColor = PixelColor(0x3A, 0x36, 0x2B)
     static let frameColor = PixelColor(0x0C, 0x0B, 0x08)
-    static let screenColor = PixelColor(0x14, 0x12, 0x0C)
+    nonisolated static let screenColor = PixelColor(0x14, 0x12, 0x0C)
     static let mutedColor = PixelColor(0x9A, 0x93, 0x84)
     static let titleColor = SpriteData.palette[2]
     static let barTrackColor = PixelColor(0x2A, 0x27, 0x1F)

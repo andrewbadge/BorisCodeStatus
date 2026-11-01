@@ -143,6 +143,7 @@ jobs:
           version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' ../Directory.Build.props | head -n 1)
           test -x "$app/Contents/MacOS/BorisCodeStatus"
           test -x "$app/Contents/Helpers/BorisCodeStatusHooks"
+          test -f "$app/Contents/Resources/AppIcon.icns"
           test "$(ls "$app/Contents/Resources/Sounds"/*.wav | wc -l)" -eq "$(ls ../shared/sounds/*.wav | wc -l)"
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version"
           archs=$(lipo -archs "$app/Contents/MacOS/BorisCodeStatus")
