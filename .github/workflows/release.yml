@@ -319,9 +319,11 @@ jobs:
           test -f "$dmg"
           codesign --force --sign "$SIGN_IDENTITY" --timestamp "$dmg"
 
+          # Usually a few minutes, but a new team's first submissions have sat in Apple's queue for
+          # well over half an hour, so the wait is generous; the job's own 6-hour limit still bounds it.
           key="$RUNNER_TEMP/AuthKey.p8"
           printf '%s\n' "$MACOS_NOTARY_KEY_P8" > "$key"
-          xcrun notarytool submit "$dmg" --key "$key" --key-id "$MACOS_NOTARY_KEY_ID" --issuer "$MACOS_NOTARY_ISSUER_ID" --wait --timeout 30m --output-format json > "$RUNNER_TEMP/notary.json" || true
+          xcrun notarytool submit "$dmg" --key "$key" --key-id "$MACOS_NOTARY_KEY_ID" --issuer "$MACOS_NOTARY_ISSUER_ID" --wait --timeout 2h --output-format json > "$RUNNER_TEMP/notary.json" || true
           rm "$key"
           cat "$RUNNER_TEMP/notary.json"
 
