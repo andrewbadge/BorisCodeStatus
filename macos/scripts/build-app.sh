@@ -8,7 +8,11 @@
 # any path under .build/ (HookPathGuard), so copy it to /Applications to use it for real.
 #
 # The version comes from <Version> in Directory.Build.props, the single source of truth for both
-# builds. Developer ID signing and notarisation are not done here; see docs/macos-port.md.
+# builds.
+#
+# Signed ad hoc unless SIGN_IDENTITY names a certificate, as the Release workflow does with its
+# Developer ID. A real identity also gets the hardened runtime and a secure timestamp, both of
+# which notarisation requires. Notarising is the workflow's job; see docs/macos-port.md.
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -70,8 +74,19 @@ cat > "$app/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+identity=${SIGN_IDENTITY:--}
+if [ "$identity" = "-" ]; then
+    options=""
+else
+    # No entitlements: the app is not sandboxed (it must write ~/.claude/settings.json) and uses
+    # nothing the hardened runtime withholds.
+    options="--options runtime --timestamp"
+fi
+
 # Inside out: the helper first, then the bundle that seals it.
-codesign --force --sign - --identifier au.getboris.BorisCodeStatusHooks "$app/Contents/Helpers/BorisCodeStatusHooks"
-codesign --force --sign - "$app"
+# shellcheck disable=SC2086 # $options is deliberately split into separate arguments.
+codesign --force --sign "$identity" $options --identifier au.getboris.BorisCodeStatusHooks "$app/Contents/Helpers/BorisCodeStatusHooks"
+# shellcheck disable=SC2086
+codesign --force --sign "$identity" $options "$app"
 
 echo "Built $app ($version)"

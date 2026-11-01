@@ -7,7 +7,7 @@
 #
 # It packages whatever signature the app has. build-app.sh signs ad hoc, which is enough to try a
 # build locally; a public release needs the app signed with a Developer ID first and the .dmg
-# notarised and stapled after, both done by the Release workflow (see docs/macos-port.md).
+# signed, notarised and stapled after, all done by the Release workflow (see docs/macos-port.md).
 set -eu
 
 cd "$(dirname "$0")/.."
