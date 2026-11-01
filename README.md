@@ -24,7 +24,8 @@
 [Tray icon](docs/tray.md) ·
 [macOS](#on-macos) ·
 [HTTP service](docs/tray.md#the-http-service-off-by-default) ·
-[Build](docs/development.md) ·
+[Build from source](docs/building.md) ·
+[Development](docs/development.md) ·
 [Design notes](docs/development.md#design-notes) ·
 [Spec](docs/SPECS.md) ·
 [Known limitations](docs/known-limitations.md) ·
@@ -97,8 +98,7 @@ data:
   hooks on every launch. Before deleting the app, use **Settings → Advanced → Unregister hooks**:
   a Mac app has no uninstaller to tidy `~/.claude/settings.json`.
 
-**There is no Mac download yet.** Releases will carry a signed, notarised `.dmg` once Developer ID
-signing is in place; until then, build it from source (below).
+Each release carries a `.dmg`, signed with a Developer ID and notarised by Apple.
 
 > **Unofficial.** This is an independent community project. It is not made, endorsed or supported
 > by Anthropic. See [Trademarks](docs/license.md#trademarks).
@@ -111,15 +111,16 @@ and asleep when nothing is happening.
 
 ## Quick start
 
-Both need Claude Code. The quota figures need a Claude subscription login — Claude Code omits
-`rate_limits` on API-key sessions, so those show state only.
+Install a release. Both need Claude Code, and the quota figures need a Claude subscription login —
+Claude Code omits `rate_limits` on API-key sessions, so those show state only. To build either app
+yourself instead, see [Building from source](docs/building.md).
 
 ### Windows
 
 **Requirements:** Windows 10 or 11 (x64).
 
 1. Download `BorisCodeStatus-<version>.msi` from the
-   [Releases](https://github.com/andrewbadge/BorisCodeStatus/releases) page and run it.
+   [latest release](https://github.com/andrewbadge/BorisCodeStatus/releases/latest) and run it.
    It installs for your user only; there is no UAC prompt.
 2. The tray icon appears and registers its hooks in `~/.claude/settings.json` (see
    [Hook registration](docs/install.md#hook-registration-first-run-logic-not-an-msi-custom-action) for exactly
@@ -136,22 +137,16 @@ make an HTTP `GET` and parse JSON can consume `/status`.
 
 ### macOS
 
-**Requirements:** macOS 14 or later, on Apple silicon or Intel, and Xcode or its Command Line
-Tools to build. Until releases carry a `.dmg`, build it from source:
+**Requirements:** macOS 14 or later, on Apple silicon or Intel.
 
-```bash
-git clone https://github.com/andrewbadge/BorisCodeStatus.git
-cd BorisCodeStatus/macos
-scripts/build-app.sh                                   # universal, ad-hoc signed .build/BorisCodeStatus.app
-ditto .build/BorisCodeStatus.app /Applications/BorisCodeStatus.app
-open /Applications/BorisCodeStatus.app
-```
-
-1. Install to **Applications** and open it from there. A copy run from the build folder, or
-   straight from a download, refuses to register its hooks, because that path will not last.
-2. The pet appears in the menu bar and the app registers its hooks in `~/.claude/settings.json`.
-   Restart Claude Code to pick them up.
-3. Click the pet for **Show Status Card** and **Settings…**.
+1. Download `BorisCodeStatus-<version>-macOS.dmg` from the
+   [latest release](https://github.com/andrewbadge/BorisCodeStatus/releases/latest) and open it.
+2. Drag **BorisCodeStatus** onto **Applications**, then open it from Applications. macOS asks once
+   whether to open an app downloaded from the internet; choose **Open**. Do not run it from the
+   `.dmg`: its hooks would point at a disk image that is gone once ejected.
+3. The pet appears in the menu bar, the app registers its hooks in `~/.claude/settings.json` and
+   adds itself to your login items. Restart Claude Code to pick the hooks up.
+4. Click the pet for **Show Status Card** and **Settings…**.
 
 ## Documentation
 
@@ -162,6 +157,7 @@ open /Applications/BorisCodeStatus.app
 | [The `/status` endpoint](docs/status-endpoint.md) | The JSON payload, field by field, and why the endpoint is unauthenticated |
 | [Install](docs/install.md) | The per-user MSI, Windows Firewall, and how the hooks are registered |
 | [Tray icon](docs/tray.md) | The icon, the pets, the cards, notifications and sounds, and the HTTP service |
+| [Building from source](docs/building.md) | Building and installing either app yourself instead of a release |
 | [Development](docs/development.md) | Building, CI, dependency updates, publishing a release, testing hooks, design notes |
 | [Spec](docs/SPECS.md) | The behaviour spec |
 | [Known limitations](docs/known-limitations.md) | What it cannot do, and why |

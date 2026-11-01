@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A Windows user-mode tray app that relays Claude Code session/usage data over HTTP on the LAN so an
 ESP32 display can poll it. No service, no admin rights, no IPC. The documentation is unusually thorough —
 `README.md` is the overview and quick start, and `docs/` holds the rest (`privacy.md`,
-`how-it-works.md`, `status-endpoint.md`, `install.md`, `tray.md`, `development.md`,
+`how-it-works.md`, `status-endpoint.md`, `install.md`, `tray.md`, `building.md`, `development.md`,
 `known-limitations.md`, `license.md`, `SPECS.md`). Read it before designing anything; it documents
 the security posture, the release process and the known limitations, and it is expected to stay
 current with each change.
