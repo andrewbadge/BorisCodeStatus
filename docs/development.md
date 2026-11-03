@@ -146,3 +146,9 @@ line is a far worse outcome than a missed update.
 **State writes are atomic and cross-process safe**: serialised by a named mutex, written to a temp
 file and moved into place, so a reader sees either the old file or the new one, never a partial one.
 Reads share every file mode and swallow transient I/O errors.
+
+**OpenCode as a second source is planned, not implemented.** The architecture, event mapping and
+phased work are in [opencode-source.md](opencode-source.md). The short version: it is a native
+HTTP-and-SSE client in the tray/menu-bar process that writes the same `state.json`, selected by a
+new `source` preference; Claude remains the default and nothing downstream of the state file
+changes.
