@@ -213,7 +213,7 @@ jobs:
           New-Item -ItemType Directory -Force upload | Out-Null
           Copy-Item "BorisCodeStatus.Installer\bin\Release\BorisCodeStatus.msi" "upload\BorisCodeStatus-${{ needs.version.outputs.version }}.msi"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: windows/upload/
@@ -343,7 +343,7 @@ jobs:
           mkdir -p upload
           cp "$dmg" upload/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos
           path: macos/upload/
@@ -365,7 +365,7 @@ jobs:
       # Checked out only so gh has a repository to work in; nothing is built here.
       - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: downloads
           merge-multiple: true
